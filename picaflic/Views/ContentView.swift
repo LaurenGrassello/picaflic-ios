@@ -1,35 +1,35 @@
-//
-//  ContentView.swift
-//  picaflic
-//
-//  Created by Lauren Odalen on 3/12/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var authStore = AuthStore()
+    private let authService = AuthService()
+
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "film")
-                .font(.system(size: 60))
-
-            Text("Pic-a-Flic")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            Text("Find your next movie")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Button("Start Swiping") {
-                print("Start Swiping tapped")
+        Group {
+            if authStore.isLoggedIn {
+                BrowseView()
+                    .environmentObject(authStore)
+            } else {
+                LoginView()
+                    .environmentObject(authStore)
             }
-            .buttonStyle(.borderedProminent)
         }
-        .padding()
+        .task {
+            await loadUserIfNeeded()
+        }
     }
-}
 
-#Preview {
-    ContentView()
+    private func loadUserIfNeeded() async {
+        guard authStore.currentUser == nil,
+              let token = authStore.accessToken else {
+            return
+        }
+
+        do {
+            let user = try await authService.me(token: token)
+            authStore.currentUser = user
+        } catch {
+            authStore.clear()
+        }
+    }
 }
