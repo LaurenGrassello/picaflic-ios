@@ -26,7 +26,7 @@ struct FeedItem: Decodable, Identifiable {
         self.tmdb_id = try container.decodeFlexibleInt(forKey: .tmdb_id)
         self.is_tv = try container.decodeFlexibleInt(forKey: .is_tv)
         self.title = try container.decode(String.self, forKey: .title)
-        self.popularity = try container.decodeFlexibleDouble(forKey: .popularity)
+        self.popularity = try container.decodeFlexibleDoubleIfPresent(forKey: .popularity) ?? 0
         self.release_date = try container.decodeIfPresent(String.self, forKey: .release_date)
         self.poster_path = try container.decodeIfPresent(String.self, forKey: .poster_path)
     }
@@ -77,26 +77,23 @@ private extension KeyedDecodingContainer where K == FeedItem.CodingKeys {
         return nil
     }
 
-    func decodeFlexibleDouble(forKey key: K) throws -> Double {
-        if let doubleValue = try? decode(Double.self, forKey: key) {
+    func decodeFlexibleDoubleIfPresent(forKey key: K) throws -> Double? {
+        if let doubleValue = try decodeIfPresent(Double.self, forKey: key) {
             return doubleValue
         }
 
-        if let intValue = try? decode(Int.self, forKey: key) {
+        if let intValue = try decodeIfPresent(Int.self, forKey: key) {
             return Double(intValue)
         }
 
-        if let stringValue = try? decode(String.self, forKey: key),
-           let doubleValue = Double(stringValue) {
-            return doubleValue
+        if let stringValue = try decodeIfPresent(String.self, forKey: key) {
+            let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                return nil
+            }
+            return Double(trimmed)
         }
 
-        throw DecodingError.typeMismatch(
-            Double.self,
-            DecodingError.Context(
-                codingPath: codingPath + [key],
-                debugDescription: "Expected Double, Int, or numeric String for \(key.stringValue)"
-            )
-        )
+        return nil
     }
 }

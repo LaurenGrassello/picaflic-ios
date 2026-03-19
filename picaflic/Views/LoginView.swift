@@ -32,11 +32,11 @@ struct LoginView: View {
                         .font(.footnote)
                 }
 
-                Button {
+                Button(action: {
                     Task {
                         await login()
                     }
-                } label: {
+                }) {
                     if isLoading {
                         ProgressView()
                             .frame(maxWidth: .infinity)
@@ -48,8 +48,8 @@ struct LoginView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(isLoading)
 
-                NavigationLink("Create Account") {
-                    RegisterView()
+                NavigationLink(destination: RegisterView()) {
+                    Text("Create Account")
                 }
             }
             .padding()
@@ -74,4 +74,9 @@ struct LoginView: View {
 
         isLoading = false
     }
+}
+
+#Preview {
+    LoginView()
+        .environmentObject(AuthStore())
 }

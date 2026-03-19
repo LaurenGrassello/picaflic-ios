@@ -12,37 +12,51 @@ struct BrowseView: View {
 
     var body: some View {
         NavigationStack {
-            contentView
-                .navigationTitle("Browse")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Logout") {
-                            authStore.clear()
+            VStack {
+                if isLoading {
+                    ProgressView("Loading...")
+                        .padding()
+                } else if !errorMessage.isEmpty {
+                    Text("Error: \(errorMessage)")
+                        .foregroundColor(.red)
+                        .padding()
+                } else if items.isEmpty {
+                    Text("No items found")
+                        .padding()
+                } else {
+                    List(items) { item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(item.title)
+                                .font(.headline)
+
+                            Text(item.isTV ? "TV" : "Movie")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            Text("Local ID: \(item.localId.map(String.init) ?? "nil")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
+                        .padding(.vertical, 4)
                     }
                 }
-                .searchable(text: $query, prompt: "Search movies or shows")
-                .onSubmit(of: .search) {
-                    Task {
-                        await loadFeed()
+            }
+            .navigationTitle("Browse")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Logout") {
+                        authStore.clear()
                     }
                 }
-                .task {
+            }
+            .searchable(text: $query, prompt: "Search movies or shows")
+            .onSubmit(of: .search) {
+                Task {
                     await loadFeed()
                 }
-        }
-    }
-
-    @ViewBuilder
-    private var contentView: some View {
-        if isLoading {
-            ProgressView()
-        } else if !errorMessage.isEmpty {
-            Text(errorMessage)
-                .padding()
-        } else {
-            List(items) { item in
-                BrowseRowView(item: item)
+            }
+            .task {
+                await loadFeed()
             }
         }
     }
@@ -58,69 +72,18 @@ struct BrowseView: View {
         }
 
         do {
-            items = try await feedService.fetchForYou(
+            let results = try await feedService.fetchForYou(
                 token: token,
                 query: query
             )
+
+            print("Loaded \(results.count) items")
+            items = results
         } catch {
+            print("Browse load error: \(error)")
             errorMessage = error.localizedDescription
         }
 
         isLoading = false
-    }
-}
-
-private struct BrowseRowView: View {
-    let item: FeedItem
-
-    var body: some View {
-        HStack(spacing: 12) {
-            posterView
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.headline)
-
-                Text(item.isTV ? "TV" : "Movie")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                if let release = item.release_date, !release.isEmpty {
-                    Text(release)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text("Local ID: \(item.localId.map(String.init) ?? "nil")")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var posterView: some View {
-        AsyncImage(url: item.posterURL) { phase in
-            switch phase {
-            case .empty:
-                Rectangle()
-                    .opacity(0.2)
-
-            case .success(let image):
-                image
-                    .resizable()
-                    .scaledToFill()
-
-            case .failure:
-                Rectangle()
-                    .opacity(0.2)
-
-            @unknown default:
-                Rectangle()
-                    .opacity(0.2)
-            }
-        }
-        .frame(width: 60, height: 90)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
