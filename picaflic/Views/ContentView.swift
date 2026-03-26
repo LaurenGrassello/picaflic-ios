@@ -7,7 +7,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if authStore.isLoggedIn {
-                BrowseView()
+                SwipeView()
                     .environmentObject(authStore)
             } else {
                 LoginView()

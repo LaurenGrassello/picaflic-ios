@@ -12,47 +12,96 @@ struct LoginView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Text("Pic-a-Flic")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+            ZStack {
+                Color("BrandCharcoal")
+                    .ignoresSafeArea()
 
-                TextField("Email", text: $email)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.emailAddress)
-                    .textFieldStyle(.roundedBorder)
+                VStack(spacing: 24) {
+                    Spacer(minLength: 24)
 
-                SecureField("Password", text: $password)
-                    .textFieldStyle(.roundedBorder)
+                    Image("EyeballGraphic")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 180)
 
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                        .font(.footnote)
-                }
+                    VStack(spacing: 8) {
+                        Text("Pic-A-Flic")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(Color("BrandSand"))
 
-                Button(action: {
-                    Task {
-                        await login()
+                        Text("Spend less time scrolling and more time watching.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color("BrandSand").opacity(0.9))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
                     }
-                }) {
-                    if isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Text("Login")
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isLoading)
 
-                NavigationLink(destination: RegisterView()) {
-                    Text("Create Account")
+                    VStack(spacing: 14) {
+                        TextField("", text: $email, prompt: Text("Email").foregroundColor(Color("BrandSand").opacity(0.7)))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.emailAddress)
+                            .padding()
+                            .background(Color.white.opacity(0.08))
+                            .foregroundColor(.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color("BrandSand").opacity(0.25), lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+
+                        SecureField("", text: $password, prompt: Text("Password").foregroundColor(Color("BrandSand").opacity(0.7)))
+                            .padding()
+                            .background(Color.white.opacity(0.08))
+                            .foregroundColor(.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color("BrandSand").opacity(0.25), lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                    .padding(.horizontal, 24)
+
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .foregroundStyle(Color("BrandRust"))
+                            .font(.footnote)
+                            .padding(.horizontal, 24)
+                    }
+
+                    Button(action: {
+                        Task {
+                            await login()
+                        }
+                    }) {
+                        Group {
+                            if isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                Text("Login")
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .padding()
+                        .background(Color("BrandGold"))
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                    .padding(.horizontal, 24)
+                    .disabled(isLoading)
+
+                    NavigationLink(destination: RegisterView()) {
+                        Text("Create Account")
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color("BrandTeal"))
+                    }
+
+                    Spacer()
                 }
             }
-            .padding()
         }
     }
 
