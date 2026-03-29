@@ -1,10 +1,3 @@
-//
-//  SwipeView.swift
-//  picaflic
-//
-//  Created by Lauren Odalen on 3/26/26.
-//
-
 import SwiftUI
 
 struct SwipeView: View {
@@ -12,12 +5,16 @@ struct SwipeView: View {
 
     private let feedService = FeedService()
     private let swipeService = SwipeService()
+    private let detailsService = TitleDetailsService()
 
+    @State private var currentDetails: TitleDetails?
+    @State private var isLoadingDetails = false
     @State private var items: [FeedItem] = []
     @State private var currentIndex = 0
     @State private var errorMessage = ""
     @State private var isLoading = false
     @State private var dragOffset: CGSize = .zero
+    @State private var isShowingBack = false
 
     var body: some View {
         NavigationStack {
@@ -59,42 +56,107 @@ struct SwipeView: View {
             }
         }
     }
-    
-    private var fallbackView: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color.white.opacity(0.08))
-
-            Image(systemName: "film")
-                .font(.system(size: 48))
-                .foregroundStyle(Color("BrandSand"))
-        }
-    }
 
     private var headerView: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Pic-A-Flic")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color("BrandSand"))
+        VStack(spacing: 12) {
+            HStack {
+                Spacer()
 
-                Text("We help the indecisive be decisive.")
-                    .font(.footnote)
-                    .foregroundStyle(Color("BrandSand").opacity(0.8))
+                Image("EyeballGraphic")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 72, height: 72)
+
+                Spacer()
             }
 
-            Spacer()
+            HStack {
+                Button {
+                    Task {
+                        isShowingBack = false
+                        dragOffset = .zero
+                        await loadFeed()
+                    }
+                } label: {
+                    Text("Pic-A-Flic")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color("BrandSand"))
+                }
+                .buttonStyle(.plain)
 
-            Button("Logout") {
-                authStore.clear()
+                Spacer()
+
+                Button("Logout") {
+                    authStore.clear()
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color("BrandTeal"))
             }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Color("BrandTeal"))
         }
     }
 
     @ViewBuilder
     private func swipeCard(for item: FeedItem) -> some View {
+        VStack(spacing: 0) {
+            ZStack {
+                if isShowingBack {
+                    backCardView(for: item)
+                } else {
+                    frontCardView(for: item)
+                }
+            }
+            .frame(width: 300, height: 520)
+            .background(Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 6)
+        }
+        .offset(x: dragOffset.width, y: dragOffset.height * 0.15)
+        .rotationEffect(.degrees(Double(dragOffset.width / 20)))
+        .simultaneousGesture(
+            TapGesture()
+                .onEnded {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        isShowingBack.toggle()
+                    }
+                }
+        )
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    handleSwipeGesture(value)
+                }
+        )
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: dragOffset)
+    }
+    
+    private func loadDetailsForCurrentItem() async {
+        guard let token = authStore.accessToken,
+              let item = currentItem else {
+            currentDetails = nil
+            return
+        }
+
+        isLoadingDetails = true
+        defer { isLoadingDetails = false }
+
+        do {
+            let kind = item.isTV ? "tv" : "movie"
+            let details = try await detailsService.fetchDetails(
+                token: token,
+                kind: kind,
+                tmdbId: item.tmdb_id
+            )
+            currentDetails = details
+        } catch {
+            print("DETAILS LOAD ERROR:", error)
+            currentDetails = nil
+        }
+    }
+
+    private func frontCardView(for item: FeedItem) -> some View {
         VStack(spacing: 0) {
             AsyncImage(url: item.posterURL, transaction: Transaction(animation: .easeIn)) { phase in
                 switch phase {
@@ -102,7 +164,9 @@ struct SwipeView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 24)
                             .fill(Color.white.opacity(0.08))
-                        ProgressView().tint(Color("BrandSand"))
+
+                        ProgressView()
+                            .tint(Color("BrandSand"))
                     }
 
                 case .success(let image):
@@ -117,49 +181,164 @@ struct SwipeView: View {
                     fallbackView
                 }
             }
-            .frame(width: 300, height: 420)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .frame(width: 300, height: 410)
+            .clipShape(
+                RoundedRectangle(cornerRadius: 24)
+            )
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text(item.title)
                     .font(.title2.weight(.bold))
                     .foregroundStyle(Color("BrandSand"))
+                    .lineLimit(2)
 
-                HStack(spacing: 12) {
-                    Text(item.isTV ? "TV" : "Movie")
-                    if let release = item.release_date, !release.isEmpty {
-                        Text(release)
+                HStack(spacing: 10) {
+                    tagView(item.isTV ? "TV" : "Movie", color: Color("BrandTeal"))
+
+                    if let year = formattedYear(from: item.release_date) {
+                        tagView(year, color: Color("BrandGold"))
                     }
                 }
-                .font(.subheadline)
-                .foregroundStyle(Color("BrandSand").opacity(0.85))
 
-                if let localId = item.localId {
-                    Text("Local ID: \(localId)")
-                        .font(.caption)
-                        .foregroundStyle(Color("BrandTeal"))
-                } else {
-                    Text("TMDB only item")
-                        .font(.caption)
-                        .foregroundStyle(Color("BrandRust"))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Available on")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color("BrandSand").opacity(0.75))
+
+                    if isLoadingDetails {
+                        ProgressView()
+                            .tint(Color("BrandSand"))
+                    } else if let providers = currentDetails?.providers, !providers.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(providers) { provider in
+                                    providerChip(provider)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("No providers available")
+                            .font(.subheadline)
+                            .foregroundStyle(Color("BrandSand").opacity(0.9))
+                    }
                 }
+
+                Text("Tap card for details")
+                    .font(.caption)
+                    .foregroundStyle(Color("BrandTeal"))
+                    .padding(.top, 2)
             }
             .frame(width: 300, alignment: .leading)
             .padding(.top, 16)
-            .padding(.bottom, 10)
+            .padding(.bottom, 14)
         }
-        .offset(x: dragOffset.width, y: dragOffset.height * 0.15)
-        .rotationEffect(.degrees(Double(dragOffset.width / 20)))
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    dragOffset = value.translation
+        .background(Color.clear)
+    }
+
+    private func backCardView(for item: FeedItem) -> some View {
+        RoundedRectangle(cornerRadius: 24)
+            .fill(Color("BrandTeal"))
+            .overlay {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(item.title)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(3)
+
+                    HStack(spacing: 10) {
+                        Text(item.isTV ? "TV Show" : "Movie")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+
+                        if let release = item.release_date, !release.isEmpty {
+                            Text(release)
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                    }
+
+                    Divider()
+                        .overlay(.white.opacity(0.25))
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Summary")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+
+                        if isLoadingDetails {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Text(currentDetails?.overview?.isEmpty == false
+                                 ? currentDetails?.overview ?? ""
+                                 : "No summary available.")
+                                .font(.body)
+                                .foregroundStyle(.white.opacity(0.95))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Where to watch")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+
+                        if let providers = currentDetails?.providers, !providers.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(providers) { provider in
+                                        providerChip(provider)
+                                    }
+                                }
+                            }
+                        } else {
+                            Text("No providers available.")
+                                .font(.body)
+                                .foregroundStyle(.white.opacity(0.95))
+                        }
+                    }
+
+                    Spacer()
+
+                    Text("Tap card to flip back")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.8))
                 }
-                .onEnded { value in
-                    handleSwipeGesture(value)
+                .padding(24)
+            }
+            .frame(width: 300, height: 520)
+    }
+    
+    private func providerChip(_ provider: ProviderInfo) -> some View {
+        HStack(spacing: 6) {
+            if let logoURL = provider.logoURL {
+                AsyncImage(url: logoURL) { phase in
+                    switch phase {
+                    case .empty:
+                        Color.white.opacity(0.15)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFit()
+                    case .failure:
+                        Color.white.opacity(0.15)
+                    @unknown default:
+                        Color.white.opacity(0.15)
+                    }
                 }
-        )
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: dragOffset)
+                .frame(width: 18, height: 18)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+
+            Text(provider.name)
+                .font(.caption.weight(.medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color("BrandTeal"))
+        .clipShape(Capsule())
     }
 
     private var controlsView: some View {
@@ -221,13 +400,26 @@ struct SwipeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
     }
-    
-    private func preloadNextImage() {
-        let nextIndex = currentIndex + 1
-        guard items.indices.contains(nextIndex) else { return }
-        guard let url = items[nextIndex].posterURL else { return }
 
-        URLSession.shared.dataTask(with: url).resume()
+    private var fallbackView: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.white.opacity(0.08))
+
+            Image(systemName: "film")
+                .font(.system(size: 48))
+                .foregroundStyle(Color("BrandSand"))
+        }
+    }
+
+    private func tagView(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(color)
+            .clipShape(Capsule())
     }
 
     private func controlButton(systemName: String, color: Color, action: @escaping () -> Void) -> some View {
@@ -246,10 +438,24 @@ struct SwipeView: View {
         return items[currentIndex]
     }
 
+    private func formattedYear(from releaseDate: String?) -> String? {
+        guard let releaseDate, !releaseDate.isEmpty else { return nil }
+        return String(releaseDate.prefix(4))
+    }
+
+    private func preloadNextImage() {
+        let nextIndex = currentIndex + 1
+        guard items.indices.contains(nextIndex) else { return }
+        guard let url = items[nextIndex].posterURL else { return }
+
+        URLSession.shared.dataTask(with: url).resume()
+    }
+
     private func loadFeed() async {
         errorMessage = ""
         isLoading = true
         currentIndex = 0
+        isShowingBack = false
 
         guard let token = authStore.accessToken else {
             errorMessage = "Missing auth token."
@@ -264,6 +470,7 @@ struct SwipeView: View {
             )
             items = results
             preloadNextImage()
+            await loadDetailsForCurrentItem()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -292,6 +499,7 @@ struct SwipeView: View {
 
         defer {
             dragOffset = .zero
+            isShowingBack = false
             moveForward()
         }
 
@@ -319,6 +527,9 @@ struct SwipeView: View {
         if currentIndex < items.count - 1 {
             currentIndex += 1
             preloadNextImage()
+            Task {
+                await loadDetailsForCurrentItem()
+            }
         } else {
             currentIndex = items.count
         }
@@ -326,6 +537,7 @@ struct SwipeView: View {
 
     private func moveForwardWithoutVote() {
         dragOffset = .zero
+        isShowingBack = false
         moveForward()
     }
 
@@ -335,6 +547,11 @@ struct SwipeView: View {
             currentIndex -= 1
         }
         dragOffset = .zero
+        isShowingBack = false
+        
+        Task {
+                await loadDetailsForCurrentItem()
+            }
     }
 }
 
