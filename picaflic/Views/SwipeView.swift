@@ -158,34 +158,38 @@ struct SwipeView: View {
 
     private func frontCardView(for item: FeedItem) -> some View {
         VStack(spacing: 0) {
-            AsyncImage(url: item.posterURL, transaction: Transaction(animation: .easeIn)) { phase in
-                switch phase {
-                case .empty:
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.white.opacity(0.08))
+            Group {
+                if let posterURL = item.posterURL {
+                    AsyncImage(url: posterURL, transaction: Transaction(animation: .easeIn)) { phase in
+                        switch phase {
+                        case .empty:
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 24)
+                                    .fill(Color.white.opacity(0.08))
 
-                        ProgressView()
-                            .tint(Color("BrandSand"))
+                                ProgressView()
+                                    .tint(Color("BrandSand"))
+                            }
+
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+
+                        case .failure:
+                            VHSMoviePlaceholderView()
+
+                        @unknown default:
+                            VHSMoviePlaceholderView()
+                        }
                     }
-
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-
-                case .failure:
-                    fallbackView
-
-                @unknown default:
-                    fallbackView
+                } else {
+                    VHSMoviePlaceholderView()
                 }
             }
             .frame(width: 300, height: 410)
-            .clipShape(
-                RoundedRectangle(cornerRadius: 24)
-            )
-
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            
             VStack(alignment: .leading, spacing: 12) {
                 Text(item.title)
                     .font(.title2.weight(.bold))
@@ -402,14 +406,7 @@ struct SwipeView: View {
     }
 
     private var fallbackView: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color.white.opacity(0.08))
-
-            Image(systemName: "film")
-                .font(.system(size: 48))
-                .foregroundStyle(Color("BrandSand"))
-        }
+        VHSMoviePlaceholderView()
     }
 
     private func tagView(_ text: String, color: Color) -> some View {
