@@ -26,7 +26,10 @@ struct WatchlistDetailView: View {
                     .padding(.horizontal, 24)
 
                 NavigationLink {
-                    SwipeView()
+                    SwipeView(
+                        watchlistId: watchlistId,
+                        watchlistName: watchlistName
+                    )
                 } label: {
                     Text("Start Swiping")
                         .padding()

@@ -1,64 +1,106 @@
 import SwiftUI
 
 struct SwipeView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authStore: AuthStore
 
-    private let feedService = FeedService()
-    private let swipeService = SwipeService()
-    private let detailsService = TitleDetailsService()
+    let watchlistId: Int
+    let watchlistName: String
 
-    @State private var currentDetails: TitleDetails?
-    @State private var isLoadingDetails = false
+    private let watchlistService = WatchlistService()
+    private let preferenceService = PreferenceService()
+
     @State private var items: [FeedItem] = []
     @State private var currentIndex = 0
     @State private var errorMessage = ""
     @State private var isLoading = false
     @State private var dragOffset: CGSize = .zero
     @State private var isShowingBack = false
+    @State private var showMatchAlert = false
+    @State private var lastMatchNames: String = ""
+    @State private var showMatchesScreen = false
+    @State private var likedCurrentItem = false
+    @State private var likeFeedbackMessage = ""
+    @State private var showLikeFeedback = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color("BrandCharcoal")
-                    .ignoresSafeArea()
+        ZStack {
+            Color("BrandCharcoal")
+                .ignoresSafeArea()
 
-                VStack(spacing: 20) {
-                    headerView
+            VStack(spacing: 20) {
+                headerView
 
-                    Spacer()
-
-                    if isLoading {
-                        ProgressView("Loading picks...")
-                            .tint(Color("BrandSand"))
-                            .foregroundStyle(Color("BrandSand"))
-                    } else if !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .foregroundStyle(Color("BrandRust"))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 24)
-                    } else if let item = currentItem {
-                        swipeCard(for: item)
-                    } else {
-                        emptyStateView
-                    }
-
-                    Spacer()
-
-                    controlsView
+                Spacer()
+                
+                if showLikeFeedback {
+                    Text(likeFeedbackMessage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color("BrandTeal"))
+                        .clipShape(Capsule())
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .padding()
-            }
-            .navigationBarHidden(true)
-            .task {
-                if items.isEmpty {
-                    await loadFeed()
+
+                if isLoading {
+                    ProgressView("Loading picks...")
+                        .tint(Color("BrandSand"))
+                        .foregroundStyle(Color("BrandSand"))
+                } else if !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .foregroundStyle(Color("BrandRust"))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                } else if let item = currentItem {
+                    swipeCard(for: item)
+                } else {
+                    emptyStateView
                 }
+
+                Spacer()
+
+                controlsView
+                    .padding(.bottom, 90)
             }
+            .padding()
+        }
+        .navigationBarBackButtonHidden(true)
+        .navigationDestination(isPresented: $showMatchesScreen) {
+            WatchlistMatchesView(
+                watchlistId: watchlistId,
+                watchlistName: watchlistName
+            )
+        }
+        .task {
+            if items.isEmpty {
+                await loadDeck()
+            }
+        }
+        .alert("It’s a Match!", isPresented: $showMatchAlert) {
+            Button("View Matches") { }
+            Button("Keep Swiping", role: .cancel) { }
+        } message: {
+            Text(lastMatchNames.isEmpty ? "Your group matched on this movie." : lastMatchNames)
         }
     }
 
     private var headerView: some View {
         VStack(spacing: 12) {
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Pic-a-Flic")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(Color("BrandSand"))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+            }
+
             HStack {
                 Spacer()
 
@@ -71,26 +113,11 @@ struct SwipeView: View {
             }
 
             HStack {
-                Button {
-                    Task {
-                        isShowingBack = false
-                        dragOffset = .zero
-                        await loadFeed()
-                    }
-                } label: {
-                    Text("Pic-A-Flic")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color("BrandSand"))
-                }
-                .buttonStyle(.plain)
+                Text(watchlistName)
+                    .font(.headline)
+                    .foregroundStyle(Color("BrandTeal"))
 
                 Spacer()
-
-                Button("Logout") {
-                    authStore.clear()
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color("BrandTeal"))
             }
         }
     }
@@ -131,30 +158,6 @@ struct SwipeView: View {
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: dragOffset)
     }
-    
-    private func loadDetailsForCurrentItem() async {
-        guard let token = authStore.accessToken,
-              let item = currentItem else {
-            currentDetails = nil
-            return
-        }
-
-        isLoadingDetails = true
-        defer { isLoadingDetails = false }
-
-        do {
-            let kind = item.isTV ? "tv" : "movie"
-            let details = try await detailsService.fetchDetails(
-                token: token,
-                kind: kind,
-                tmdbId: item.tmdb_id
-            )
-            currentDetails = details
-        } catch {
-            print("DETAILS LOAD ERROR:", error)
-            currentDetails = nil
-        }
-    }
 
     private func frontCardView(for item: FeedItem) -> some View {
         VStack(spacing: 0) {
@@ -189,7 +192,7 @@ struct SwipeView: View {
             }
             .frame(width: 300, height: 410)
             .clipShape(RoundedRectangle(cornerRadius: 24))
-            
+
             VStack(alignment: .leading, spacing: 12) {
                 Text(item.title)
                     .font(.title2.weight(.bold))
@@ -201,29 +204,6 @@ struct SwipeView: View {
 
                     if let year = formattedYear(from: item.release_date) {
                         tagView(year, color: Color("BrandGold"))
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Available on")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color("BrandSand").opacity(0.75))
-
-                    if isLoadingDetails {
-                        ProgressView()
-                            .tint(Color("BrandSand"))
-                    } else if let providers = currentDetails?.providers, !providers.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(providers) { provider in
-                                    providerChip(provider)
-                                }
-                            }
-                        }
-                    } else {
-                        Text("No providers available")
-                            .font(.subheadline)
-                            .foregroundStyle(Color("BrandSand").opacity(0.9))
                     }
                 }
 
@@ -265,41 +245,24 @@ struct SwipeView: View {
                         .overlay(.white.opacity(0.25))
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Summary")
+                        Text("Watchlist Pick")
                             .font(.headline)
                             .foregroundStyle(.white)
 
-                        if isLoadingDetails {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text(currentDetails?.overview?.isEmpty == false
-                                 ? currentDetails?.overview ?? ""
-                                 : "No summary available.")
-                                .font(.body)
-                                .foregroundStyle(.white.opacity(0.95))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                        Text("Fast-forward adds a pick for this group. If 2+ members pick it, it becomes a match.")
+                            .font(.body)
+                            .foregroundStyle(.white.opacity(0.95))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Where to watch")
+                        Text("Your Actions")
                             .font(.headline)
                             .foregroundStyle(.white)
 
-                        if let providers = currentDetails?.providers, !providers.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(providers) { provider in
-                                        providerChip(provider)
-                                    }
-                                }
-                            }
-                        } else {
-                            Text("No providers available.")
-                                .font(.body)
-                                .foregroundStyle(.white.opacity(0.95))
-                        }
+                        Text("Heart = personal like • X = never show again • Rewind = pass for now")
+                            .font(.body)
+                            .foregroundStyle(.white.opacity(0.95))
                     }
 
                     Spacer()
@@ -312,38 +275,6 @@ struct SwipeView: View {
             }
             .frame(width: 300, height: 520)
     }
-    
-    private func providerChip(_ provider: ProviderInfo) -> some View {
-        HStack(spacing: 6) {
-            if let logoURL = provider.logoURL {
-                AsyncImage(url: logoURL) { phase in
-                    switch phase {
-                    case .empty:
-                        Color.white.opacity(0.15)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                    case .failure:
-                        Color.white.opacity(0.15)
-                    @unknown default:
-                        Color.white.opacity(0.15)
-                    }
-                }
-                .frame(width: 18, height: 18)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-            }
-
-            Text(provider.name)
-                .font(.caption.weight(.medium))
-                .lineLimit(1)
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color("BrandTeal"))
-        .clipShape(Capsule())
-    }
 
     private var controlsView: some View {
         HStack(spacing: 18) {
@@ -351,7 +282,9 @@ struct SwipeView: View {
                 systemName: "backward.end.fill",
                 color: Color("BrandTeal")
             ) {
-                moveBackward()
+                Task {
+                    await handlePass()
+                }
             }
 
             controlButton(
@@ -359,16 +292,16 @@ struct SwipeView: View {
                 color: Color("BrandRust")
             ) {
                 Task {
-                    await submitCurrentSwipe(liked: false)
+                    await handleDislike()
                 }
             }
 
             controlButton(
                 systemName: "heart.fill",
-                color: Color("BrandGold")
+                color: likedCurrentItem ? Color("BrandTeal") : Color("BrandGold")
             ) {
                 Task {
-                    await submitCurrentSwipe(liked: true)
+                    await handleLike()
                 }
             }
 
@@ -376,7 +309,9 @@ struct SwipeView: View {
                 systemName: "forward.end.fill",
                 color: Color("BrandTeal")
             ) {
-                moveForwardWithoutVote()
+                Task {
+                    await handlePick()
+                }
             }
         }
     }
@@ -392,9 +327,9 @@ struct SwipeView: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(Color("BrandSand"))
 
-            Button("Reload Feed") {
+            Button("Reload Deck") {
                 Task {
-                    await loadFeed()
+                    await loadDeck()
                 }
             }
             .padding(.horizontal, 20)
@@ -403,10 +338,6 @@ struct SwipeView: View {
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
-    }
-
-    private var fallbackView: some View {
-        VHSMoviePlaceholderView()
     }
 
     private func tagView(_ text: String, color: Color) -> some View {
@@ -448,26 +379,24 @@ struct SwipeView: View {
         URLSession.shared.dataTask(with: url).resume()
     }
 
-    private func loadFeed() async {
+    private func loadDeck() async {
+        guard let token = authStore.accessToken else {
+            errorMessage = "Missing auth token."
+            return
+        }
+
         errorMessage = ""
         isLoading = true
         currentIndex = 0
         isShowingBack = false
-
-        guard let token = authStore.accessToken else {
-            errorMessage = "Missing auth token."
-            isLoading = false
-            return
-        }
+        likedCurrentItem = false
 
         do {
-            let results = try await feedService.fetchForYou(
+            items = try await watchlistService.fetchWatchlistDeck(
                 token: token,
-                query: nil
+                watchlistId: watchlistId
             )
-            items = results
             preloadNextImage()
-            await loadDetailsForCurrentItem()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -479,20 +408,18 @@ struct SwipeView: View {
         let horizontalAmount = value.translation.width
 
         if horizontalAmount > 120 {
-            Task {
-                await submitCurrentSwipe(liked: true)
-            }
+            Task { await handlePick() }
         } else if horizontalAmount < -120 {
-            Task {
-                await submitCurrentSwipe(liked: false)
-            }
+            Task { await handlePass() }
         } else {
             dragOffset = .zero
         }
     }
 
-    private func submitCurrentSwipe(liked: Bool) async {
-        guard let item = currentItem else { return }
+    private func handlePick() async {
+        guard let token = authStore.accessToken,
+              let item = currentItem,
+              let localId = item.localId else { return }
 
         defer {
             dragOffset = .zero
@@ -500,20 +427,100 @@ struct SwipeView: View {
             moveForward()
         }
 
-        guard let token = authStore.accessToken else {
-            errorMessage = "Missing auth token."
-            return
-        }
+        do {
+            let response = try await watchlistService.sendWatchlistSwipe(
+                token: token,
+                watchlistId: watchlistId,
+                movieId: localId,
+                status: "picked"
+            )
 
-        guard let localId = item.localId else {
-            return
+            if response.match {
+                let otherNames = response.matched_users
+                    .map(\.display_name)
+                    .joined(separator: ", ")
+
+                lastMatchNames = otherNames.isEmpty
+                    ? "Your group matched on this movie."
+                    : "\(otherNames) also picked this movie."
+                showMatchAlert = true
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handlePass() async {
+        guard let token = authStore.accessToken,
+              let item = currentItem,
+              let localId = item.localId else { return }
+
+        defer {
+            dragOffset = .zero
+            isShowingBack = false
+            moveForward()
         }
 
         do {
-            try await swipeService.sendSwipe(
+            _ = try await watchlistService.sendWatchlistSwipe(
+                token: token,
+                watchlistId: watchlistId,
+                movieId: localId,
+                status: "passed"
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleLike() async {
+        guard let token = authStore.accessToken,
+              let item = currentItem,
+              let localId = item.localId else { return }
+
+        dragOffset = .zero
+        isShowingBack = false
+
+        do {
+            _ = try await preferenceService.setPreference(
                 token: token,
                 movieId: localId,
-                liked: liked
+                status: "liked"
+            )
+
+            likedCurrentItem = true
+            likeFeedbackMessage = "Added to Likes"
+
+            withAnimation {
+                showLikeFeedback = true
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                withAnimation {
+                    showLikeFeedback = false
+                }
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleDislike() async {
+        guard let token = authStore.accessToken,
+              let item = currentItem,
+              let localId = item.localId else { return }
+
+        defer {
+            dragOffset = .zero
+            isShowingBack = false
+            moveForward()
+        }
+
+        do {
+            _ = try await preferenceService.setPreference(
+                token: token,
+                movieId: localId,
+                status: "disliked"
             )
         } catch {
             errorMessage = error.localizedDescription
@@ -523,36 +530,21 @@ struct SwipeView: View {
     private func moveForward() {
         if currentIndex < items.count - 1 {
             currentIndex += 1
+            likedCurrentItem = false
             preloadNextImage()
-            Task {
-                await loadDetailsForCurrentItem()
-            }
         } else {
             currentIndex = items.count
+            likedCurrentItem = false
         }
-    }
-
-    private func moveForwardWithoutVote() {
-        dragOffset = .zero
-        isShowingBack = false
-        moveForward()
-    }
-
-    private func moveBackward() {
-        guard !items.isEmpty else { return }
-        if currentIndex > 0 {
-            currentIndex -= 1
-        }
-        dragOffset = .zero
-        isShowingBack = false
-        
-        Task {
-                await loadDetailsForCurrentItem()
-            }
     }
 }
 
 #Preview {
-    SwipeView()
+    NavigationStack {
+        SwipeView(
+            watchlistId: 1,
+            watchlistName: "Friday Night Picks"
+        )
         .environmentObject(AuthStore())
+    }
 }
