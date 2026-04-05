@@ -43,4 +43,19 @@ final class WatchlistService {
         )
         return response
     }
+
+    func createWatchlist(
+        token: String,
+        name: String,
+        memberIds: [Int]
+    ) async throws -> CreateWatchlistResponse {
+        let body = CreateWatchlistRequest(name: name, member_ids: memberIds)
+
+        return try await api.request(
+            path: "/social/watchlists",
+            method: "POST",
+            token: token,
+            body: body
+        )
+    }
 }

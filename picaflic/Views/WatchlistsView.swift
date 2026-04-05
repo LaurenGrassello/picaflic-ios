@@ -4,10 +4,13 @@ struct WatchlistsView: View {
     @EnvironmentObject var authStore: AuthStore
 
     private let watchlistService = WatchlistService()
+    private let friendsService = FriendsService()
 
     @State private var watchlists: [WatchlistSummary] = []
+    @State private var acceptedFriends: [FriendUser] = []
     @State private var isLoading = false
     @State private var errorMessage = ""
+    @State private var showCreateSheet = false
 
     var body: some View {
         NavigationStack {
@@ -35,32 +38,50 @@ struct WatchlistsView: View {
                         emptyStateView
                     } else {
                         ScrollView {
-                            LazyVStack(spacing: 14) {
-                                ForEach(watchlists) { watchlist in
-                                    NavigationLink {
-                                        WatchlistDetailView(
-                                            watchlistId: watchlist.id,
-                                            watchlistName: watchlist.name
-                                        )
-                                    } label: {
-                                        watchlistCard(watchlist)
+                            VStack(alignment: .leading, spacing: 20) {
+                                sectionTitle("Shared Watchlists")
+
+                                LazyVStack(spacing: 14) {
+                                    ForEach(watchlists) { watchlist in
+                                        NavigationLink {
+                                            WatchlistDetailView(
+                                                watchlistId: watchlist.id,
+                                                watchlistName: watchlist.name
+                                            )
+                                        } label: {
+                                            watchlistCard(watchlist)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
                                 }
+
+                                sectionTitle("My Watchlists")
+
+                                Text("Personal watchlists coming next.")
+                                    .foregroundStyle(.gray)
                             }
                             .padding(.horizontal, 20)
-                            .padding(.bottom, 20)
+                            .padding(.bottom, 24)
                         }
                     }
                 }
             }
             .task {
                 if watchlists.isEmpty {
-                    await loadWatchlists()
+                    await refreshAll()
                 }
             }
             .refreshable {
-                await loadWatchlists()
+                await refreshAll()
+            }
+            .sheet(isPresented: $showCreateSheet) {
+                CreateWatchlistSheetView(
+                    friends: acceptedFriends,
+                    onCreated: {
+                        await refreshAll()
+                    }
+                )
+                .environmentObject(authStore)
             }
         }
     }
@@ -78,6 +99,18 @@ struct WatchlistsView: View {
                     .foregroundStyle(Color("BrandSand"))
 
                 Spacer()
+
+                Button {
+                    showCreateSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Color("BrandGold"))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
         }
@@ -98,7 +131,7 @@ struct WatchlistsView: View {
                 .padding(.horizontal, 28)
 
             Button {
-                // placeholder for create watchlist flow
+                showCreateSheet = true
             } label: {
                 Text("Create Watchlist")
                     .padding()
@@ -108,9 +141,16 @@ struct WatchlistsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
             }
             .padding(.horizontal, 24)
+            .buttonStyle(.plain)
 
             Spacer()
         }
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.headline)
+            .foregroundStyle(Color("BrandTeal"))
     }
 
     private func watchlistCard(_ watchlist: WatchlistSummary) -> some View {
@@ -142,6 +182,11 @@ struct WatchlistsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
+    private func refreshAll() async {
+        await loadWatchlists()
+        await loadAcceptedFriends()
+    }
+
     private func loadWatchlists() async {
         guard let token = authStore.accessToken else {
             errorMessage = "Missing auth token."
@@ -155,9 +200,21 @@ struct WatchlistsView: View {
             watchlists = try await watchlistService.fetchWatchlists(token: token)
         } catch {
             errorMessage = error.localizedDescription
+            print("LOAD WATCHLISTS ERROR:", error)
         }
 
         isLoading = false
+    }
+
+    private func loadAcceptedFriends() async {
+        guard let token = authStore.accessToken else { return }
+
+        do {
+            let response = try await friendsService.fetchFriends(token: token)
+            acceptedFriends = response.friends
+        } catch {
+            print("LOAD FRIENDS FOR WATCHLIST ERROR:", error)
+        }
     }
 }
 

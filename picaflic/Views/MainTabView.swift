@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @EnvironmentObject var inboxStore: InboxStore
+
     var body: some View {
         TabView {
             HomeView()
@@ -22,11 +24,12 @@ struct MainTabView: View {
                 .tabItem {
                     Label("Profile", systemImage: "person.crop.circle")
                 }
+                .badge(inboxStore.pendingCount > 0 ? inboxStore.pendingCount : 0)
         }
     }
 }
 
 #Preview {
     MainTabView()
-        .environmentObject(AuthStore())
+        .environmentObject(InboxStore())
 }
