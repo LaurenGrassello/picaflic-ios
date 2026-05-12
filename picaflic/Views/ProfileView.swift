@@ -1,9 +1,10 @@
 import SwiftUI
-import Combine
 
 struct ProfileView: View {
     @EnvironmentObject var authStore: AuthStore
     @EnvironmentObject var inboxStore: InboxStore
+
+    @State private var showStreamingServices = false
 
     var body: some View {
         NavigationStack {
@@ -20,6 +21,26 @@ struct ProfileView: View {
                     Text("Profile")
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(Color("BrandSand"))
+
+                    Button {
+                        showStreamingServices = true
+                    } label: {
+                        HStack {
+                            Text("Update Streaming Services")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.gray)
+                        }
+                        .padding()
+                        .background(Color.white.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 24)
 
                     NavigationLink {
                         InboxView()
@@ -72,6 +93,13 @@ struct ProfileView: View {
             }
             .task {
                 await inboxStore.refresh(token: authStore.accessToken)
+            }
+            .sheet(isPresented: $showStreamingServices) {
+                StreamingServicesSelectionView(
+                    isOnboarding: false,
+                    onFinished: { }
+                )
+                .environmentObject(authStore)
             }
         }
     }

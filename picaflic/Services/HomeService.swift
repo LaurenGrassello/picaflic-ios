@@ -3,9 +3,9 @@ import Foundation
 final class HomeService {
     private let api = APIClient.shared
 
-    func fetchHomeFeed(token: String) async throws -> [FeedItem] {
-        let response: [FeedItem] = try await api.request(
-            path: "/feed/for-you",
+    func fetchHomeFeed(token: String, limit: Int = 20, offset: Int = 0) async throws -> HomeFeedResponse {
+        let response: HomeFeedResponse = try await api.request(
+            path: "/feed/for-you?limit=\(limit)&offset=\(offset)",
             token: token
         )
         return response

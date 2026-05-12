@@ -16,91 +16,74 @@ struct LoginView: View {
                 Color("BrandCharcoal")
                     .ignoresSafeArea()
 
-                VStack(spacing: 24) {
-                    Spacer(minLength: 24)
+                VStack(spacing: 28) {
+                    Spacer(minLength: 34)
 
-                    Image("EyeballGraphic")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 180)
+                    AuthLogoView()
 
-                    VStack(spacing: 8) {
-                        Text("Pic-A-Flic")
-                            .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(Color("BrandSand"))
+                    Text("Spend more time watching\nand less time scrolling.")
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 32)
 
-                        Text("Spend less time scrolling and more time watching.")
-                            .font(.subheadline)
-                            .foregroundStyle(Color("BrandSand").opacity(0.9))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 24)
-                    }
-
-                    VStack(spacing: 14) {
-                        TextField("", text: $email, prompt: Text("Email").foregroundColor(Color("BrandSand").opacity(0.7)))
+                    VStack(spacing: 16) {
+                        TextField("", text: $email, prompt: Text("Email").foregroundColor(.white.opacity(0.65)))
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .keyboardType(.emailAddress)
-                            .padding()
-                            .background(Color.white.opacity(0.08))
-                            .foregroundColor(.white)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .stroke(Color("BrandSand").opacity(0.25), lineWidth: 1)
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .authFieldStyle()
 
-                        SecureField("", text: $password, prompt: Text("Password").foregroundColor(Color("BrandSand").opacity(0.7)))
-                            .padding()
-                            .background(Color.white.opacity(0.08))
-                            .foregroundColor(.white)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .stroke(Color("BrandSand").opacity(0.25), lineWidth: 1)
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                    .padding(.horizontal, 24)
+                        SecureField("", text: $password, prompt: Text("Password").foregroundColor(.white.opacity(0.65)))
+                            .authFieldStyle()
 
-                    if !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .foregroundStyle(Color("BrandRust"))
-                            .font(.footnote)
-                            .padding(.horizontal, 24)
-                    }
-
-                    Button(action: {
-                        Task {
-                            await login()
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .foregroundStyle(Color("BrandRust"))
+                                .font(.footnote)
+                                .multilineTextAlignment(.center)
                         }
-                    }) {
-                        Group {
-                            if isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                                    .frame(maxWidth: .infinity)
-                            } else {
-                                Text("Login")
-                                    .fontWeight(.semibold)
-                                    .frame(maxWidth: .infinity)
+
+                        Button {
+                            Task { await login() }
+                        } label: {
+                            Group {
+                                if isLoading {
+                                    ProgressView()
+                                        .tint(.white)
+                                        .frame(maxWidth: .infinity)
+                                } else {
+                                    Text("Log In")
+                                        .fontWeight(.semibold)
+                                        .frame(maxWidth: .infinity)
+                                }
                             }
+                            .padding()
+                            .background(Color("BrandGold"))
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .shadow(color: .black.opacity(0.35), radius: 5, x: 0, y: 4)
                         }
-                        .padding()
-                        .background(Color("BrandGold"))
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                    .padding(.horizontal, 24)
-                    .disabled(isLoading)
+                        .disabled(isLoading)
 
-                    NavigationLink(destination: RegisterView()) {
-                        Text("Create Account")
-                            .fontWeight(.medium)
-                            .foregroundStyle(Color("BrandTeal"))
+                        NavigationLink {
+                            RegisterView()
+                                .environmentObject(authStore)
+                        } label: {
+                            Text("Create an Account")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(Color("BrandTeal"))
+                                .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 3)
+                        }
+                        .padding(.top, 4)
                     }
+                    .padding(.horizontal, 40)
 
                     Spacer()
                 }
+                .padding(.vertical, 18)
             }
         }
     }

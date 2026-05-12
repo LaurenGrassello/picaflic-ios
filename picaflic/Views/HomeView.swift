@@ -12,7 +12,14 @@ struct HomeView: View {
     @State private var searchText = ""
     @State private var isLoading = false
     @State private var errorMessage = ""
+    
+    @State private var hasMore = true
+    @State private var isLoadingMore = false
+    @State private var currentOffset = 0
 
+    @State private var pageSize = 20
+    @State private var reset = false
+    
     private let columns = [
         GridItem(.flexible(), spacing: 16),
         GridItem(.flexible(), spacing: 16)
@@ -52,18 +59,42 @@ struct HomeView: View {
                                 }
                             }
                             .padding(.horizontal, 20)
-                            .padding(.bottom, 24)
+
+                            if isLoadingMore {
+                                ProgressView()
+                                    .tint(Color("BrandSand"))
+                                    .padding(.vertical, 20)
+                            }
+
+                            if hasMore && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Color.clear
+                                    .frame(height: 1)
+                                    .onAppear {
+                                        Task {
+                                            await loadHome(reset: false)
+                                        }
+                                    }
+                            } else if hasMore && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Color.clear
+                                    .frame(height: 1)
+                                    .onAppear {
+                                        Task {
+                                            await loadHome(reset: false)
+                                        }
+                                    }
+                            }
                         }
+                        .padding(.bottom, 24)
                     }
                 }
             }
             .task {
                 if movies.isEmpty {
-                    await loadHome()
+                    await loadHome(reset: true)
                 }
             }
             .refreshable {
-                await loadHome()
+                await loadHome(reset: true)
             }
         }
     }
@@ -102,7 +133,7 @@ struct HomeView: View {
             if !searchText.isEmpty {
                 Button {
                     searchText = ""
-                    Task { await loadHome() }
+                    Task { await loadHome(reset: true) }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(Color("BrandSand").opacity(0.8))
@@ -278,23 +309,59 @@ struct HomeView: View {
         return dislikedIds.contains(id) ? Color("BrandTeal") : Color("BrandRust")
     }
 
-    private func loadHome() async {
+    private func loadHome(reset: Bool = true) async {
         guard let token = authStore.accessToken else {
             errorMessage = "Missing auth token."
             return
         }
 
-        isLoading = true
-        errorMessage = ""
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedSearch.isEmpty else {
+            return
+        }
+
+        if reset {
+            isLoading = true
+            errorMessage = ""
+            currentOffset = 0
+            hasMore = true
+        } else {
+            guard !isLoading,
+                  !isLoadingMore,
+                  hasMore else { return }
+            isLoadingMore = true
+        }
 
         do {
-            movies = try await homeService.fetchHomeFeed(token: token)
+            let response = try await homeService.fetchHomeFeed(
+                token: token,
+                limit: pageSize,
+                offset: currentOffset
+            )
+
+            if reset {
+                movies = response.results
+            } else {
+                let existingIds = Set(movies.compactMap(\.id))
+                let newItems = response.results.filter { item in
+                    guard let id = item.id else { return true }
+                    return !existingIds.contains(id)
+                }
+                movies.append(contentsOf: newItems)
+            }
+
+            currentOffset += response.results.count
+            hasMore = response.meta.has_more && !response.results.isEmpty
         } catch {
             errorMessage = error.localizedDescription
             print("HOME LOAD ERROR:", error)
         }
 
-        isLoading = false
+        if reset {
+            isLoading = false
+        } else {
+            isLoadingMore = false
+        }
     }
 
     private func runSearch() async {
@@ -305,12 +372,13 @@ struct HomeView: View {
 
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            await loadHome()
+            await loadHome(reset: true)
             return
         }
 
         isLoading = true
         errorMessage = ""
+        hasMore = false
 
         do {
             movies = try await homeService.searchMovies(token: token, query: trimmed)

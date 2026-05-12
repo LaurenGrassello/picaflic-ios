@@ -25,6 +25,11 @@ final class AuthStore: ObservableObject {
         UserDefaults.standard.set(auth.token, forKey: accessTokenKey)
         UserDefaults.standard.set(auth.refresh_token, forKey: refreshTokenKey)
     }
+    
+    func save(_ auth: AuthResponse) {
+        accessToken = auth.token
+        refreshToken = auth.refresh_token
+    }
 
     func clear() {
         accessToken = nil

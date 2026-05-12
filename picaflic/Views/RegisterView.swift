@@ -2,119 +2,103 @@ import SwiftUI
 
 struct RegisterView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var authStore: AuthStore
 
     private let authService = AuthService()
 
-    @State private var displayName = ""
     @State private var email = ""
     @State private var password = ""
+    @State private var username = ""
     @State private var errorMessage = ""
     @State private var isLoading = false
 
     var body: some View {
-        ZStack {
-            Color("BrandCharcoal")
-                .ignoresSafeArea()
+        NavigationStack {
+            ZStack {
+                Color("BrandCharcoal")
+                    .ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                Spacer(minLength: 24)
+                VStack(spacing: 28) {
+                    Spacer(minLength: 44)
 
-                Image("EyeballGraphic")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 160)
+                    VStack(spacing: 14) {
+                        Image("EyeballGraphic")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 64)
+                            .shadow(color: Color("BrandGold").opacity(0.35), radius: 12, x: 0, y: 6)
 
-                VStack(spacing: 8) {
-                    Text("Create Account")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundStyle(Color("BrandSand"))
+                        Text("Create Your Account!")
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundStyle(Color("BrandTeal"))
 
-                    Text("Start discovering what to watch faster.")
-                        .font(.subheadline)
-                        .foregroundStyle(Color("BrandSand").opacity(0.9))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                }
-
-                VStack(spacing: 14) {
-                    TextField("", text: $displayName, prompt: Text("Display Name").foregroundColor(Color("BrandSand").opacity(0.7)))
-                        .padding()
-                        .background(Color.white.opacity(0.08))
-                        .foregroundColor(.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color("BrandSand").opacity(0.25), lineWidth: 1)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-
-                    TextField("", text: $email, prompt: Text("Email").foregroundColor(Color("BrandSand").opacity(0.7)))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.emailAddress)
-                        .padding()
-                        .background(Color.white.opacity(0.08))
-                        .foregroundColor(.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color("BrandSand").opacity(0.25), lineWidth: 1)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-
-                    SecureField("", text: $password, prompt: Text("Password").foregroundColor(Color("BrandSand").opacity(0.7)))
-                        .padding()
-                        .background(Color.white.opacity(0.08))
-                        .foregroundColor(.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color("BrandSand").opacity(0.25), lineWidth: 1)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .padding(.horizontal, 24)
-
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundStyle(Color("BrandRust"))
-                        .font(.footnote)
-                        .padding(.horizontal, 24)
-                }
-
-                Button(action: {
-                    Task {
-                        await register()
+                        Text("So you can find what to watch \nbefore your pizza gets cold.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color("BrandSand").opacity(0.9))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
                     }
-                }) {
-                    Group {
-                        if isLoading {
-                            ProgressView()
-                                .tint(.white)
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Text("Register")
-                                .fontWeight(.semibold)
-                                .frame(maxWidth: .infinity)
+
+                    VStack(spacing: 18) {
+                        TextField("", text: $username, prompt: Text("Username").foregroundColor(Color("BrandSand").opacity(0.7)))
+                            .authFieldStyle()
+
+                        TextField("", text: $email, prompt: Text("Email").foregroundColor(Color("BrandSand").opacity(0.7)))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.emailAddress)
+                            .authFieldStyle()
+
+                        SecureField("", text: $password, prompt: Text("Password").foregroundColor(Color("BrandSand").opacity(0.7)))
+                            .authFieldStyle()
+                    }
+                    .padding(.horizontal, 36)
+                    .padding(.top, 18)
+
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .foregroundStyle(Color("BrandRust"))
+                            .font(.footnote)
+                            .padding(.horizontal, 24)
+                    }
+
+                    Button {
+                        Task { await register() }
+                    } label: {
+                        Group {
+                            if isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                Text("Register")
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                            }
                         }
+                        .padding()
+                        .background(Color("BrandGold"))
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
-                    .padding()
-                    .background(Color("BrandGold"))
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .padding(.horizontal, 24)
-                .disabled(isLoading)
+                    .padding(.horizontal, 36)
+                    .padding(.top, 8)
+                    .disabled(isLoading)
 
-                Button("Back to Login") {
-                    dismiss()
-                }
-                .fontWeight(.medium)
-                .foregroundStyle(Color("BrandTeal"))
+                    Button("Back to Login") {
+                        dismiss()
+                    }
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color("BrandTeal"))
 
-                Spacer()
+                    Spacer(minLength: 36)
+                }
             }
-        }
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(" ")
+            
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(" ")
+                }
             }
         }
     }
@@ -127,10 +111,17 @@ struct RegisterView: View {
             try await authService.register(
                 email: email,
                 password: password,
-                displayName: displayName,
+                displayName: username,
                 services: []
             )
-            dismiss()
+
+            let auth = try await authService.login(email: email, password: password)
+            authStore.save(auth)
+
+            UserDefaults.standard.set(username, forKey: "onboarding_username")
+            UserDefaults.standard.set(false, forKey: "show_username_onboarding")
+            UserDefaults.standard.set(true, forKey: "show_welcome_onboarding")
+            UserDefaults.standard.set(false, forKey: "show_streaming_onboarding")
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -140,5 +131,8 @@ struct RegisterView: View {
 }
 
 #Preview {
-    RegisterView()
+    NavigationStack {
+        RegisterView()
+            .environmentObject(AuthStore())
+    }
 }
