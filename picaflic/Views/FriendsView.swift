@@ -126,27 +126,34 @@ struct FriendsView: View {
     }
 
     private func friendRow(_ friend: FriendUser) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(friend.display_name)
-                    .foregroundStyle(.white)
+        NavigationLink {
+            FriendProfileView(friend: friend, token: authStore.accessToken ?? "")
+                .environmentObject(authStore)
+        } label: {
+            HStack {
+                Image(friend.id % 2 == 0 ? "YellowFriend" : "RedFriend")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 36, height: 36)
 
-                Text(friend.email)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(friend.display_name)
+                        .foregroundStyle(.white)
+                        .font(.subheadline.weight(.semibold))
+                    Text(friend.email)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.white.opacity(0.3))
             }
-
-            Spacer()
-
-            Text("Friends")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color("BrandTeal"))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.white.opacity(0.08))
-                .clipShape(Capsule())
+            .padding(.vertical, 6)
         }
-        .padding(.vertical, 4)
+        .buttonStyle(.plain)
     }
 
     private func pendingRequestRow(_ user: FriendUser) -> some View {

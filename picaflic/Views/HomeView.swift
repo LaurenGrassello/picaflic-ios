@@ -12,14 +12,27 @@ struct HomeView: View {
     @State private var searchText = ""
     @State private var isLoading = false
     @State private var errorMessage = ""
-    
+    @State private var addToWatchlistMovie: FeedItem? = nil
+
     @State private var hasMore = true
     @State private var isLoadingMore = false
     @State private var currentOffset = 0
-
     @State private var pageSize = 20
-    @State private var reset = false
-    
+
+    // Filters
+    @State private var showAllServices = true
+    @State private var selectedServiceId: Int? = nil
+    @State private var selectedGenre: String? = nil
+    @State private var selectedType: String? = nil  // nil = all, "movie", "tv"
+    @State private var showGenrePicker = false
+    @State private var showTypePicker = false
+
+    private let genres = [
+        "Action", "Adventure", "Animation", "Comedy", "Crime",
+        "Documentary", "Drama", "Family", "Fantasy", "Horror",
+        "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western"
+    ]
+
     private let columns = [
         GridItem(.flexible(), spacing: 16),
         GridItem(.flexible(), spacing: 16)
@@ -28,8 +41,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color("BrandCharcoal")
-                    .ignoresSafeArea()
+                Color("BrandCharcoal").ignoresSafeArea()
 
                 VStack(spacing: 16) {
                     headerView
@@ -49,7 +61,7 @@ struct HomeView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 24)
                         Spacer()
-                    } else if movies.isEmpty {
+                    } else if filteredMovies.isEmpty {
                         emptyStateView
                     } else {
                         ScrollView {
@@ -70,17 +82,7 @@ struct HomeView: View {
                                 Color.clear
                                     .frame(height: 1)
                                     .onAppear {
-                                        Task {
-                                            await loadHome(reset: false)
-                                        }
-                                    }
-                            } else if hasMore && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Color.clear
-                                    .frame(height: 1)
-                                    .onAppear {
-                                        Task {
-                                            await loadHome(reset: false)
-                                        }
+                                        Task { await loadHome(reset: false) }
                                     }
                             }
                         }
@@ -90,14 +92,30 @@ struct HomeView: View {
             }
             .task {
                 if movies.isEmpty {
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
                     await loadHome(reset: true)
                 }
             }
             .refreshable {
                 await loadHome(reset: true)
             }
+            .sheet(isPresented: $showGenrePicker) {
+                genrePickerSheet
+            }
+            .sheet(isPresented: $showTypePicker) {
+                typePickerSheet
+            }
+            .sheet(item: $addToWatchlistMovie) { movie in
+                if let token = authStore.accessToken {
+                    AddToWatchlistSheet(movie: movie, token: token) {
+                        addToWatchlistMovie = nil
+                    }
+                }
+            }
         }
     }
+
+    // MARK: - Header
 
     private var headerView: some View {
         VStack(spacing: 12) {
@@ -110,13 +128,14 @@ struct HomeView: View {
                 Text("Pic-a-Flic")
                     .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(Color("BrandSand"))
-
                 Spacer()
             }
             .padding(.horizontal, 20)
         }
         .padding(.top, 12)
     }
+
+    // MARK: - Search
 
     private var searchBar: some View {
         HStack(spacing: 10) {
@@ -147,90 +166,268 @@ struct HomeView: View {
         .padding(.horizontal, 20)
     }
 
+    // MARK: - Filter Row
+
     private var filterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                filterPill("All Services", active: true)
-                filterPill("Genre", active: false)
-                filterPill("Movies", active: false)
-                filterPill("TV", active: false)
+
+                // All Services toggle
+                Button {
+                    showAllServices = true
+                    selectedServiceId = nil
+                } label: {
+                    Text("All Services")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(showAllServices ? .white : Color("BrandSand"))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(showAllServices ? Color("BrandTeal") : Color.white.opacity(0.06))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+
+                // Individual service pills from loaded movies
+                ForEach(availableServices, id: \.0) { (providerId, name, asset) in
+                    Button {
+                        if selectedServiceId == providerId {
+                            selectedServiceId = nil
+                            showAllServices = true
+                        } else {
+                            selectedServiceId = providerId
+                            showAllServices = false
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            if let asset {
+                                Image(asset)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 18, height: 18)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                            }
+                            Text(name)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(selectedServiceId == providerId ? .white : Color("BrandSand"))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(selectedServiceId == providerId ? Color("BrandTeal") : Color.white.opacity(0.06))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Genre picker
+                Button {
+                    showGenrePicker = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(selectedGenre ?? "Genre")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(selectedGenre != nil ? .white : Color("BrandSand"))
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(selectedGenre != nil ? .white : Color("BrandSand"))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(selectedGenre != nil ? Color("BrandTeal") : Color.white.opacity(0.06))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+
+                // Movies / TV picker
+                Button {
+                    showTypePicker = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(selectedType == "movie" ? "Movies" : selectedType == "tv" ? "TV" : "Movies & TV")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(selectedType != nil ? .white : Color("BrandSand"))
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(selectedType != nil ? .white : Color("BrandSand"))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(selectedType != nil ? Color("BrandTeal") : Color.white.opacity(0.06))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
         }
     }
 
-    private func filterPill(_ text: String, active: Bool) -> some View {
-        Text(text)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(active ? .white : Color("BrandSand"))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(active ? Color("BrandTeal") : Color.white.opacity(0.06))
-            .clipShape(Capsule())
+    // MARK: - Genre Sheet
+
+    private var genrePickerSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color("BrandCharcoal").ignoresSafeArea()
+                List {
+                    Button {
+                        selectedGenre = nil
+                        showGenrePicker = false
+                    } label: {
+                        HStack {
+                            Text("All Genres")
+                                .foregroundStyle(.white)
+                            Spacer()
+                            if selectedGenre == nil {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color("BrandTeal"))
+                            }
+                        }
+                    }
+                    .listRowBackground(Color.white.opacity(0.06))
+
+                    ForEach(genres, id: \.self) { genre in
+                        Button {
+                            selectedGenre = genre
+                            showGenrePicker = false
+                        } label: {
+                            HStack {
+                                Text(genre)
+                                    .foregroundStyle(.white)
+                                Spacer()
+                                if selectedGenre == genre {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color("BrandTeal"))
+                                }
+                            }
+                        }
+                        .listRowBackground(Color.white.opacity(0.06))
+                    }
+                }
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("Genre")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showGenrePicker = false }
+                        .foregroundStyle(Color("BrandTeal"))
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
-    private var emptyStateView: some View {
-        VStack(spacing: 18) {
-            Spacer()
+    // MARK: - Type Sheet
 
-            Image("EyeballGraphic")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 120)
-
-            Text("No movies found")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(Color("BrandSand"))
-
-            Text("Try another search or refresh your feed.")
-                .foregroundStyle(Color("BrandSand").opacity(0.85))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
-
-            Spacer()
+    private var typePickerSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color("BrandCharcoal").ignoresSafeArea()
+                List {
+                    ForEach([
+                        (nil as String?, "Movies & TV"),
+                        ("movie", "Movies only"),
+                        ("tv", "TV only")
+                    ], id: \.1) { (value, label) in
+                        Button {
+                            selectedType = value
+                            showTypePicker = false
+                        } label: {
+                            HStack {
+                                Text(label)
+                                    .foregroundStyle(.white)
+                                Spacer()
+                                if selectedType == value {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color("BrandTeal"))
+                                }
+                            }
+                        }
+                        .listRowBackground(Color.white.opacity(0.06))
+                    }
+                }
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("Type")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showTypePicker = false }
+                        .foregroundStyle(Color("BrandTeal"))
+                }
+            }
         }
+        .presentationDetents([.height(220)])
+    }
+
+    // MARK: - Computed
+
+    // Unique services present in the current feed
+    private var availableServices: [(Int, String, String?)] {
+        var seen = Set<Int>()
+        var result: [(Int, String, String?)] = []
+        for movie in movies {
+            guard let pid = movie.provider_id,
+                  let name = movie.provider_name,
+                  !seen.contains(pid) else { continue }
+            seen.insert(pid)
+            result.append((pid, name, movie.providerAsset))
+        }
+        return result.sorted { $0.1 < $1.1 }
     }
 
     private var filteredMovies: [FeedItem] {
         movies.filter { movie in
-            guard let id = movie.localId else { return true }
-            return !dislikedIds.contains(id)
+            if let id = movie.localId, dislikedIds.contains(id) { return false }
+            if let sid = selectedServiceId, movie.provider_id != sid { return false }
+            if let type = selectedType {
+                if type == "movie" && movie.isTV { return false }
+                if type == "tv" && !movie.isTV { return false }
+            }
+            if let genre = selectedGenre, !movie.genreNames.contains(genre) { return false }
+            return true
         }
     }
 
+    // MARK: - Movie Card
+
     private func movieCard(_ movie: FeedItem) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Group {
-                if let posterURL = movie.posterURL {
-                    AsyncImage(url: posterURL) { phase in
-                        switch phase {
-                        case .empty:
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 18)
-                                    .fill(Color.white.opacity(0.08))
-
-                                ProgressView()
-                                    .tint(Color("BrandSand"))
+            ZStack(alignment: .topLeading) {
+                Group {
+                    if let posterURL = movie.posterURL {
+                        AsyncImage(url: posterURL) { phase in
+                            switch phase {
+                            case .empty:
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 18)
+                                        .fill(Color.white.opacity(0.08))
+                                    ProgressView().tint(Color("BrandSand"))
+                                }
+                            case .success(let image):
+                                image.resizable().scaledToFill()
+                            case .failure:
+                                VHSMoviePlaceholderView()
+                            @unknown default:
+                                VHSMoviePlaceholderView()
                             }
-
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-
-                        case .failure:
-                            VHSMoviePlaceholderView()
-
-                        @unknown default:
-                            VHSMoviePlaceholderView()
                         }
+                    } else {
+                        VHSMoviePlaceholderView()
                     }
-                } else {
-                    VHSMoviePlaceholderView()
+                }
+                .frame(height: 230)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+
+                // Service icon badge top-left
+                if let asset = movie.providerAsset {
+                    Image(asset)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 28, height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .shadow(color: .black.opacity(0.5), radius: 4)
+                        .padding(8)
                 }
             }
-            .frame(height: 230)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(movie.title)
@@ -240,7 +437,6 @@ struct HomeView: View {
 
                 HStack(spacing: 8) {
                     tagView(movie.isTV ? "TV" : "Movie")
-
                     if let year = formattedYear(from: movie.release_date) {
                         tagView(year)
                     }
@@ -259,6 +455,18 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
 
+                    Button {
+                        addToWatchlistMovie = movie
+                    } label: {
+                        Image(systemName: "bookmark.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color("BrandTeal"))
+                            .frame(width: 34, height: 34)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    
                     Button {
                         Task { await dislikeMovie(movie) }
                     } label: {
@@ -282,6 +490,26 @@ struct HomeView: View {
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+
+    // MARK: - Helpers
+
+    private var emptyStateView: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Image("EyeballGraphic")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 120)
+            Text("No movies found")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(Color("BrandSand"))
+            Text("Try another search or refresh your feed.")
+                .foregroundStyle(Color("BrandSand").opacity(0.85))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+            Spacer()
+        }
     }
 
     private func tagView(_ text: String) -> some View {
@@ -309,6 +537,8 @@ struct HomeView: View {
         return dislikedIds.contains(id) ? Color("BrandTeal") : Color("BrandRust")
     }
 
+    // MARK: - Data
+
     private func loadHome(reset: Bool = true) async {
         guard let token = authStore.accessToken else {
             errorMessage = "Missing auth token."
@@ -316,9 +546,7 @@ struct HomeView: View {
         }
 
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedSearch.isEmpty else {
-            return
-        }
+        guard trimmedSearch.isEmpty else { return }
 
         if reset {
             isLoading = true
@@ -326,9 +554,7 @@ struct HomeView: View {
             currentOffset = 0
             hasMore = true
         } else {
-            guard !isLoading,
-                  !isLoadingMore,
-                  hasMore else { return }
+            guard !isLoading, !isLoadingMore, hasMore else { return }
             isLoadingMore = true
         }
 
@@ -357,11 +583,7 @@ struct HomeView: View {
             print("HOME LOAD ERROR:", error)
         }
 
-        if reset {
-            isLoading = false
-        } else {
-            isLoadingMore = false
-        }
+        if reset { isLoading = false } else { isLoadingMore = false }
     }
 
     private func runSearch() async {
@@ -393,13 +615,8 @@ struct HomeView: View {
     private func likeMovie(_ movie: FeedItem) async {
         guard let token = authStore.accessToken,
               let localId = movie.localId else { return }
-
         do {
-            _ = try await preferenceService.setPreference(
-                token: token,
-                movieId: localId,
-                status: "liked"
-            )
+            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: "liked")
             likedIds.insert(localId)
             dislikedIds.remove(localId)
         } catch {
@@ -410,13 +627,8 @@ struct HomeView: View {
     private func dislikeMovie(_ movie: FeedItem) async {
         guard let token = authStore.accessToken,
               let localId = movie.localId else { return }
-
         do {
-            _ = try await preferenceService.setPreference(
-                token: token,
-                movieId: localId,
-                status: "disliked"
-            )
+            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: "disliked")
             dislikedIds.insert(localId)
             likedIds.remove(localId)
         } catch {

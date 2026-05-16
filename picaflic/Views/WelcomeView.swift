@@ -86,42 +86,60 @@ struct WelcomeView: View {
     private var rentalCard: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color.white.opacity(0.055))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color("BrandTeal").opacity(0.65), lineWidth: 1.2)
-                )
-                .shadow(color: Color("BrandTeal").opacity(0.65), radius: 18, x: 0, y: 0)
-                .shadow(color: .black.opacity(0.45), radius: 8, x: 0, y: 6)
+                ZStack(alignment: .bottomTrailing) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Color.white.opacity(0.055))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color("BrandTeal").opacity(0.65), lineWidth: 1.2)
+                            )
+                            .shadow(color: Color("BrandTeal").opacity(0.65), radius: 18, x: 0, y: 0)
+                            .shadow(color: .black.opacity(0.45), radius: 8, x: 0, y: 6)
 
-            VStack(spacing: 20) {
-                Image("TealLetterLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 230)
-                    .padding(.top, 22)
+                        VStack(spacing: 20) {
+                            Image("TealLetterLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 230)
+                                .padding(.top, 22)
 
-                VStack(spacing: 0) {
-                    HStack {
-                        Text(username.isEmpty ? "(Username)" : username)
-                            .font(.title3)
-                            .foregroundStyle(.white.opacity(0.82))
+                            VStack(spacing: 0) {
+                                HStack {
+                                    Text(username.isEmpty ? "(Username)" : username)
+                                        .font(.title3)
+                                        .foregroundStyle(.white.opacity(0.82))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.7) // shrinks text for long usernames
+                                        .truncationMode(.tail)
 
-                        Spacer()
+                                    Spacer()
+                                    
+                                    // Right padding so YellowFriend doesn't overlap text
+                                    Color.clear.frame(width: 56)
+                                }
+                                .padding(.horizontal, 26)
+                                .frame(height: 62)
+                                .background(Color("BrandSand").opacity(0.85))
+
+                                Rectangle()
+                                    .fill(Color("BrandGold"))
+                                    .frame(height: 28)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .padding(.horizontal, 22)
+                            .padding(.bottom, 28)
+                        }
                     }
-                    .padding(.horizontal, 26)
-                    .frame(height: 62)
-                    .background(Color("BrandSand").opacity(0.85))
+                    .frame(height: 230)
 
-                    Rectangle()
-                        .fill(Color("BrandGold"))
-                        .frame(height: 28)
+                    Image("RedFriend")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 90)
+                        .offset(x: -10, y: -10) 
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .padding(.horizontal, 22)
-                .padding(.bottom, 28)
             }
-        }
         .frame(height: 230)
     }
 }
