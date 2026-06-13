@@ -11,17 +11,15 @@ struct FriendsView: View {
     @State private var searchResults: [UserSearchResult] = []
     @State private var query = ""
     @State private var isLoading = false
+    @State private var messageRecipient: FriendUser? = nil
     @State private var errorMessage = ""
 
     var body: some View {
-        NavigationStack {
             ZStack {
-                Color("BrandCharcoal")
-                    .ignoresSafeArea()
+                Color("BrandCharcoal").ignoresSafeArea()
 
                 VStack(spacing: 16) {
                     headerView
-
                     searchBar
 
                     if isLoading {
@@ -42,7 +40,6 @@ struct FriendsView: View {
 
                                 if !pendingReceived.isEmpty {
                                     sectionTitle("Friend Requests")
-
                                     ForEach(pendingReceived) { user in
                                         pendingRequestRow(user)
                                     }
@@ -50,7 +47,6 @@ struct FriendsView: View {
 
                                 if !pendingSent.isEmpty {
                                     sectionTitle("Pending Sent")
-
                                     ForEach(pendingSent) { user in
                                         sentRequestRow(user)
                                     }
@@ -58,7 +54,6 @@ struct FriendsView: View {
 
                                 if !searchResults.isEmpty {
                                     sectionTitle("Search Results")
-
                                     ForEach(searchResults) { user in
                                         searchResultRow(user)
                                     }
@@ -81,14 +76,17 @@ struct FriendsView: View {
                 }
                 .padding()
             }
-            .task {
-                await loadFriends()
-            }
-            .refreshable {
-                await loadFriends()
+            .task { await loadFriends() }
+            .refreshable { await loadFriends() }
+            .sheet(item: $messageRecipient) { friend in
+                MessageComposeView(
+                    recipient: friend,
+                    token: authStore.accessToken ?? ""
+                )
             }
         }
-    }
+
+    // MARK: - Header
 
     private var headerView: some View {
         VStack(spacing: 12) {
@@ -101,11 +99,12 @@ struct FriendsView: View {
                 Text("Friends")
                     .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(Color("BrandSand"))
-
                 Spacer()
             }
         }
     }
+
+    // MARK: - Search Bar
 
     private var searchBar: some View {
         TextField("Search users...", text: $query)
@@ -125,10 +124,18 @@ struct FriendsView: View {
             .foregroundStyle(Color("BrandTeal"))
     }
 
+    // MARK: - Row Views
+
     private func friendRow(_ friend: FriendUser) -> some View {
         NavigationLink {
-            FriendProfileView(friend: friend, token: authStore.accessToken ?? "")
-                .environmentObject(authStore)
+            FriendProfileView(
+                friend: friend,
+                token: authStore.accessToken ?? "",
+                onSendMessage: { recipient in
+                    messageRecipient = recipient
+                }
+            )
+            .environmentObject(authStore)
         } label: {
             HStack {
                 Image(friend.id % 2 == 0 ? "YellowFriend" : "RedFriend")
@@ -161,7 +168,6 @@ struct FriendsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(user.display_name)
                     .foregroundStyle(.white)
-
                 Text(user.email)
                     .font(.caption)
                     .foregroundStyle(.gray)
@@ -203,7 +209,6 @@ struct FriendsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(user.display_name)
                     .foregroundStyle(.white)
-
                 Text(user.email)
                     .font(.caption)
                     .foregroundStyle(.gray)
@@ -227,7 +232,6 @@ struct FriendsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(user.display_name)
                     .foregroundStyle(.white)
-
                 Text(user.email)
                     .font(.caption)
                     .foregroundStyle(.gray)

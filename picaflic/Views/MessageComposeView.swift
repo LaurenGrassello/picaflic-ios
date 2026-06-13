@@ -3,155 +3,311 @@ import SwiftUI
 struct MessageComposeView: View {
     let recipient: FriendUser
     let token: String
-    var existingMessage: Message? = nil // if set, shows reply mode
-    var onDismiss: () -> Void
+    var existingMessage: Message? = nil
 
     private let service = MessageService()
 
-    @State private var subject: String = ""
-    @State private var messageBody: String = ""
-    @State private var isSending = false
-    @State private var errorMessage: String? = nil
-    @State private var didSend = false
+    @Environment(\.dismiss) private var dismiss
 
-    var isReply: Bool { existingMessage != nil }
+    @State private var threadMessages: [Message] = []
+    @State private var messageBody: String = ""
+    @State private var subject: String = ""
+    @State private var isSending = false
+    @State private var isLoading = false
+    @State private var isReplying = false
+    @State private var errorMessage: String? = nil
+
+    var isReply: Bool { existingMessage != nil || !threadMessages.isEmpty }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color("BrandCharcoal").ignoresSafeArea()
+        ZStack {
+            Color("BrandCharcoal").ignoresSafeArea()
 
+            VStack(spacing: 0) {
+
+                // Envelope header
+                ZStack {
+                    Image("EnvelopeIcon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 260)
+
+                    Text(isReply ? "" : "New Message")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(Color("BrandTeal"))
+                        .rotationEffect(.degrees(-8))
+                        .fixedSize()
+                        .offset(y: -8)
+                }
+                .frame(height: 160)
+                .padding(.top, 8)
+
+                // Unified message card
                 VStack(spacing: 0) {
-                    // Envelope header
-                    ZStack {
-                        Image("Message_V2")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 220)
 
-                        Text(isReply ? "Reply" : "New Message")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(Color("BrandTeal"))
-                            .rotationEffect(.degrees(-4))
-                            .offset(y: -8)
-                    }
-                    .frame(height: 140)
-                    .padding(.top, 8)
+                    if isLoading {
+                        ProgressView()
+                            .tint(Color("BrandSand"))
+                            .padding(32)
+                    } else {
+                        ScrollView {
+                            VStack(spacing: 0) {
 
-                    // Form
-                    VStack(spacing: 0) {
-                        // To
-                        formRow(label: "To:") {
-                            Text("@\(recipient.display_name)")
-                                .foregroundStyle(.white.opacity(0.8))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .background(Color("BrandTeal").opacity(0.25))
+                                // Compose area — shown when replying or new message
+                                if isReplying || !isReply {
+                                    // New message header rows
+                                    if !isReply {
+                                        messageHeaderRow(
+                                            label: "To:",
+                                            value: "@\(recipient.display_name)",
+                                            tinted: true
+                                        )
+                                        Divider().background(Color.white.opacity(0.1))
+                                        messageHeaderRow(
+                                            label: "From:",
+                                            value: "You",
+                                            tinted: false
+                                        )
+                                        Divider().background(Color.white.opacity(0.1))
+                                        // Subject field for new messages
+                                        HStack {
+                                            Text("Subject:")
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(.white.opacity(0.7))
+                                                .frame(width: 80, alignment: .leading)
+                                            TextField("", text: $subject)
+                                                .foregroundStyle(.white)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                        .background(Color("BrandTeal").opacity(0.35))
+                                        Divider().background(Color.white.opacity(0.1))
+                                    } else {
+                                        // Reply header
+                                        HStack {
+                                            Text("Replying to \(recipient.display_name)")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(Color("BrandTeal"))
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(Color("BrandTeal").opacity(0.15))
+                                        Divider().background(Color.white.opacity(0.1))
+                                    }
 
-                        Divider().background(Color.white.opacity(0.1))
+                                    // Compose text area
+                                    TextEditor(text: $messageBody)
+                                        .foregroundStyle(.white)
+                                        .scrollContentBackground(.hidden)
+                                        .background(Color("BrandSand").opacity(0.08))
+                                        .frame(minHeight: 120)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
 
-                        // From — auto-filled, display only
-                        formRow(label: "From:") {
-                            Text("You")
-                                .foregroundStyle(.white.opacity(0.6))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
+                                    if let error = errorMessage {
+                                        Text(error)
+                                            .font(.caption)
+                                            .foregroundStyle(Color("BrandRust"))
+                                            .padding(.horizontal, 16)
+                                            .padding(.bottom, 4)
+                                    }
 
-                        Divider().background(Color.white.opacity(0.1))
+                                    Divider().background(Color.white.opacity(0.1))
+                                }
 
-                        // Subject
-                        formRow(label: "Subject:") {
-                            TextField("", text: $subject)
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .background(Color("BrandTeal").opacity(0.25))
+                                // Send / Reply button row
+                                HStack {
+                                    if isReply && !isReplying {
+                                        // Show reply button when not yet replying
+                                        Button {
+                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                isReplying = true
+                                            }
+                                        } label: {
+                                            Text("Reply")
+                                                .font(.headline.weight(.bold))
+                                                .foregroundStyle(Color("BrandTeal"))
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 14)
+                                        }
+                                        .buttonStyle(.plain)
+                                    } else {
+                                        // Cancel reply
+                                        if isReplying {
+                                            Button {
+                                                withAnimation(.easeInOut(duration: 0.2)) {
+                                                    isReplying = false
+                                                    messageBody = ""
+                                                }
+                                            } label: {
+                                                Text("Cancel")
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(.white.opacity(0.5))
+                                                    .padding(.vertical, 14)
+                                                    .padding(.horizontal, 20)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
 
-                        Divider().background(Color.white.opacity(0.1))
+                                        Spacer()
 
-                        // Body
-                        TextEditor(text: $messageBody)
-                            .foregroundStyle(.white)
-                            .scrollContentBackground(.hidden)
-                            .background(Color.clear)
-                            .frame(minHeight: 160)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                    }
-                    .background(Color("BrandSand").opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
-                    .padding(.horizontal, 20)
+                                        // Send button
+                                        Button {
+                                            Task { await sendMessage() }
+                                        } label: {
+                                            Group {
+                                                if isSending {
+                                                    ProgressView().tint(Color("BrandTeal"))
+                                                } else {
+                                                    Text("Send")
+                                                        .font(.headline.weight(.bold))
+                                                        .foregroundStyle(Color("BrandTeal"))
+                                                }
+                                            }
+                                            .padding(.vertical, 14)
+                                            .padding(.horizontal, 20)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(
+                                            messageBody.trimmingCharacters(in: .whitespaces).isEmpty ||
+                                            (!isReply && subject.trimmingCharacters(in: .whitespaces).isEmpty) ||
+                                            isSending
+                                        )
+                                    }
+                                }
+                                .background(Color("BrandSand").opacity(0.1))
 
-                    if let error = errorMessage {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(Color("BrandRust"))
-                            .padding(.top, 8)
-                    }
+                                // Thread messages — newest first
+                                if !threadMessages.isEmpty {
+                                    ForEach(threadMessages.reversed()) { message in
+                                        Divider()
+                                            .background(Color.white.opacity(0.15))
+                                            .padding(.horizontal, 16)
 
-                    Spacer()
-
-                    // Send / Reply button
-                    Button {
-                        Task { await sendMessage() }
-                    } label: {
-                        Group {
-                            if isSending {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text(isReply ? "Reply" : "Send")
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(.white)
+                                        threadMessageBlock(message)
+                                    }
+                                }
                             }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color("BrandTeal"))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
-                    .disabled(subject.trimmingCharacters(in: .whitespaces).isEmpty ||
-                              messageBody.trimmingCharacters(in: .whitespaces).isEmpty ||
-                              isSending)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
                 }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { onDismiss() }
-                        .foregroundStyle(Color("BrandSand"))
-                }
-            }
-            .onAppear {
-                if let msg = existingMessage {
-                    subject = msg.subject.hasPrefix("Re: ") ? msg.subject : "Re: \(msg.subject)"
-                }
+                .background(Color("BrandSand").opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
             }
         }
-        .presentationDetents([.large])
+        .navigationTitle(recipient.display_name)
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await loadThread() }
+        .onAppear {
+            if let msg = existingMessage {
+                subject = msg.subject.hasPrefix("Re: ") ? msg.subject : "Re: \(msg.subject)"
+            }
+            // Auto open reply mode if coming from a received message
+            if existingMessage != nil {
+                isReplying = false
+            }
+        }
     }
 
-    private func formRow<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 12) {
+    // MARK: - Header Row
+
+    private func messageHeaderRow(label: String, value: String, tinted: Bool) -> some View {
+        HStack {
             Text(label)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color("BrandTeal"))
-                .frame(width: 70, alignment: .leading)
-            content()
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: 80, alignment: .leading)
+            Text(value)
+                .font(.subheadline)
+                .foregroundStyle(.white)
+            Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.vertical, 12)
+        .background(tinted ? Color("BrandTeal").opacity(0.35) : Color("BrandSand").opacity(0.15))
+    }
+
+    // MARK: - Thread Message Block
+
+    private func threadMessageBlock(_ message: Message) -> some View {
+        let isMine = message.sender_id != recipient.id
+
+        return VStack(spacing: 0) {
+            // From row
+            HStack {
+                Text(isMine ? "From: You" : "From: \(message.sender_name)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isMine ? Color("BrandGold") : Color("BrandTeal"))
+                Spacer()
+                Text(formattedDate(message.created_at))
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                isMine
+                    ? Color("BrandGold").opacity(0.1)
+                    : Color("BrandTeal").opacity(0.1)
+            )
+
+            // Body
+            Text(message.body)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color("BrandSand").opacity(0.06))
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func formattedDate(_ dateString: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        guard let date = formatter.date(from: dateString) else { return "" }
+        let display = DateFormatter()
+        display.dateStyle = .none
+        display.timeStyle = .short
+        return display.string(from: date)
+    }
+
+    // MARK: - Data
+
+    private func loadThread() async {
+        isLoading = true
+        do {
+            threadMessages = try await service.fetchThread(
+                token: token,
+                userId: recipient.id
+            )
+        } catch {
+            print("LOAD THREAD ERROR:", error)
+        }
+        isLoading = false
     }
 
     private func sendMessage() async {
-        let subjectTrimmed = subject.trimmingCharacters(in: .whitespaces)
         let bodyTrimmed = messageBody.trimmingCharacters(in: .whitespaces)
-        guard !subjectTrimmed.isEmpty, !bodyTrimmed.isEmpty else { return }
+        guard !bodyTrimmed.isEmpty else { return }
+
+        let subjectToSend: String
+        if isReply {
+            subjectToSend = threadMessages.first.map {
+                $0.subject.hasPrefix("Re: ") ? $0.subject : "Re: \($0.subject)"
+            } ?? subject
+        } else {
+            subjectToSend = subject.trimmingCharacters(in: .whitespaces)
+        }
 
         isSending = true
         errorMessage = nil
@@ -160,10 +316,12 @@ struct MessageComposeView: View {
             try await service.sendMessage(
                 token: token,
                 recipientId: recipient.id,
-                subject: subjectTrimmed,
+                subject: subjectToSend,
                 body: bodyTrimmed
             )
-            onDismiss()
+            messageBody = ""
+            isReplying = false
+            await loadThread()
         } catch {
             errorMessage = "Couldn't send message."
         }

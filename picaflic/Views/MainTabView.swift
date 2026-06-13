@@ -8,11 +8,16 @@ struct MainTabView: View {
         ZStack(alignment: .bottom) {
             Group {
                 switch selectedTab {
-                case 0: HomeView()
-                case 1: WatchlistsView()
-                case 2: FriendsView()
-                case 3: ProfileView()
-                default: HomeView()
+                case 0:
+                    NavigationStack { HomeView() }
+                case 1:
+                    NavigationStack { WatchlistsView() }
+                case 2:
+                    NavigationStack { FriendsView() }
+                case 3:
+                    NavigationStack { ProfileView() }
+                default:
+                    NavigationStack { HomeView() }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -37,15 +42,10 @@ struct MainTabView: View {
         .padding(.bottom, 28)
         .background(
             ZStack {
-                // frosted glass
                 Rectangle()
                     .fill(.ultraThinMaterial)
-
-                // warm gold tint overlay
                 Color("BrandGold")
                     .opacity(0.08)
-
-                // top border
                 VStack {
                     Rectangle()
                         .frame(height: 0.5)
@@ -66,8 +66,6 @@ struct MainTabView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 26, height: 26)
-                        .foregroundStyle(selectedTab == index ? Color("BrandGold") : Color("BrandSand").opacity(0.5))
-                        // template rendering so tint works
                         .colorMultiply(selectedTab == index ? Color("BrandGold") : Color("BrandSand").opacity(0.5))
 
                     if let badge, badge > 0 {

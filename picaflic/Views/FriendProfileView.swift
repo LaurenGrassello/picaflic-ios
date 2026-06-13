@@ -7,17 +7,17 @@ struct FriendProfileView: View {
     private let watchlistService = WatchlistService()
     private let friendsService = FriendsService()
 
+    var onSendMessage: ((FriendUser) -> Void)? = nil
+
     @EnvironmentObject var authStore: AuthStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var sharedWatchlists: [WatchlistSummary] = []
     @State private var isLoading = false
-    @State private var showMessageSheet = false
     @State private var showUnfriendAlert = false
     @State private var showCreateWatchlistSheet = false
     @State private var errorMessage = ""
 
-    // Alternate avatar by friend ID
     private var avatarAsset: String {
         friend.id % 2 == 0 ? "YellowFriend" : "RedFriend"
     }
@@ -75,13 +75,10 @@ struct FriendProfileView: View {
                                             .resizable()
                                             .scaledToFit()
                                             .frame(width: 20, height: 20)
-
                                         Text(wl.name)
                                             .font(.subheadline.weight(.semibold))
                                             .foregroundStyle(Color("BrandGold"))
-
                                         Spacer()
-
                                         Text("\(wl.member_count) members")
                                             .font(.caption)
                                             .foregroundStyle(.white.opacity(0.4))
@@ -108,26 +105,12 @@ struct FriendProfileView: View {
 
                     // Actions
                     VStack(spacing: 12) {
+
                         // Send message
-                        Button {
-                            showMessageSheet = true
+                        NavigationLink {
+                            messageComposeDestination
                         } label: {
-                            HStack {
-                                Image("Message_V2")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 22, height: 22)
-                                Text("Send a Message")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.3))
-                            }
-                            .padding(16)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            messageButtonLabel
                         }
                         .buttonStyle(.plain)
 
@@ -135,22 +118,7 @@ struct FriendProfileView: View {
                         Button {
                             showCreateWatchlistSheet = true
                         } label: {
-                            HStack {
-                                Image("Friends_Avatars")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 22, height: 22)
-                                Text("Create Watchlist Together")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.3))
-                            }
-                            .padding(16)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            createWatchlistButtonLabel
                         }
                         .buttonStyle(.plain)
 
@@ -158,17 +126,7 @@ struct FriendProfileView: View {
                         Button {
                             showUnfriendAlert = true
                         } label: {
-                            HStack {
-                                Image(systemName: "person.fill.xmark")
-                                    .foregroundStyle(Color("BrandRust"))
-                                Text("Unfriend")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(Color("BrandRust"))
-                                Spacer()
-                            }
-                            .padding(16)
-                            .background(Color("BrandRust").opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            unfriendButtonLabel
                         }
                         .buttonStyle(.plain)
                     }
@@ -187,13 +145,6 @@ struct FriendProfileView: View {
         .navigationTitle(friend.display_name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadSharedWatchlists() }
-        .sheet(isPresented: $showMessageSheet) {
-            MessageComposeView(
-                recipient: friend,
-                token: token,
-                onDismiss: { showMessageSheet = false }
-            )
-        }
         .sheet(isPresented: $showCreateWatchlistSheet) {
             CreateWatchlistSheetView(
                 friends: [friend],
@@ -213,6 +164,69 @@ struct FriendProfileView: View {
             Text("This will remove \(friend.display_name) from your friends list.")
         }
     }
+
+    private var messageComposeDestination: some View {
+        MessageComposeView(
+            recipient: friend,
+            token: token
+        )
+    }
+    
+    // MARK: - Button Labels
+
+    private var messageButtonLabel: some View {
+        HStack {
+            Image("EnvelopeIcon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 22, height: 22)
+            Text("Send a Message")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.3))
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var createWatchlistButtonLabel: some View {
+        HStack {
+            Image("Friends_Avatars")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 22, height: 22)
+            Text("Create Watchlist Together")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.3))
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var unfriendButtonLabel: some View {
+        HStack {
+            Image(systemName: "person.fill.xmark")
+                .foregroundStyle(Color("BrandRust"))
+            Text("Unfriend")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color("BrandRust"))
+            Spacer()
+        }
+        .padding(16)
+        .background(Color("BrandRust").opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: - Data
 
     private func loadSharedWatchlists() async {
         guard let token = authStore.accessToken else { return }

@@ -13,127 +13,102 @@ struct InboxView: View {
     @State private var isLoading = false
     @State private var errorMessage = ""
     @State private var messages: [Message] = []
-    @State private var replyToMessage: Message? = nil
-    @State private var showReplySheet = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color("BrandCharcoal").ignoresSafeArea()
+        ZStack {
+            Color("BrandCharcoal").ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    headerView
+            VStack(spacing: 0) {
+                headerView
 
-                    if isLoading {
-                        Spacer()
-                        ProgressView("Loading inbox...")
-                            .tint(Color("BrandSand"))
-                            .foregroundStyle(Color("BrandSand"))
-                        Spacer()
-                    } else if !errorMessage.isEmpty {
-                        Spacer()
-                        Text(errorMessage)
-                            .foregroundStyle(Color("BrandRust"))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 24)
-                        Spacer()
-                    } else {
-                        GeometryReader { geo in
-                            VStack(spacing: 16) {
-                                
-                                inboxBlock(
-                                    title: "Messages",
-                                    height: (geo.size.height - 72) / 3
-                                ) {
-                                    if messages.isEmpty {
-                                        emptyBlockMessage("No messages yet.")
-                                    } else {
-                                        ForEach(messages) { message in
-                                            messageRow(message)
-                                            if message.id != messages.last?.id {
-                                                Divider()
-                                                    .background(Color.white.opacity(0.08))
-                                                    .padding(.horizontal, 16)
-                                            }
-                                        }
-                                    }
-                                }
+                if isLoading {
+                    Spacer()
+                    ProgressView("Loading inbox...")
+                        .tint(Color("BrandSand"))
+                        .foregroundStyle(Color("BrandSand"))
+                    Spacer()
+                } else if !errorMessage.isEmpty {
+                    Spacer()
+                    Text(errorMessage)
+                        .foregroundStyle(Color("BrandRust"))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                    Spacer()
+                } else {
+                    GeometryReader { geo in
+                        VStack(spacing: 16) {
 
-                                // Friend Requests Block
-                                inboxBlock(
-                                    title: "Friend Requests",
-                                    height: (geo.size.height - 72) / 3
-                                ) {
-                                    if pendingFriendRequests.isEmpty {
-                                        emptyBlockMessage("No friend requests right now.")
-                                    } else {
-                                        ForEach(pendingFriendRequests) { user in
-                                            friendRequestRow(user)
-                                            if user.id != pendingFriendRequests.last?.id {
-                                                Divider()
-                                                    .background(Color.white.opacity(0.08))
-                                                    .padding(.horizontal, 16)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Watchlist Invites Block
-                                inboxBlock(
-                                    title: "Watchlist Requests",
-                                    height: (geo.size.height - 72) / 3
-                                ) {
-                                    if watchlistInvites.isEmpty {
-                                        emptyBlockMessage("No watchlist invites right now.")
-                                    } else {
-                                        ForEach(watchlistInvites) { invite in
-                                            watchlistInviteRow(invite)
-                                            if invite.id != watchlistInvites.last?.id {
-                                                Divider()
-                                                    .background(Color.white.opacity(0.08))
-                                                    .padding(.horizontal, 16)
-                                            }
+                            inboxBlock(
+                                title: "Messages",
+                                height: max(100, (geo.size.height - 72) / 3)
+                            ) {
+                                if messages.isEmpty {
+                                    emptyBlockMessage("No messages yet.")
+                                } else {
+                                    ForEach(messages) { message in
+                                        messageRow(message)
+                                        if message.id != messages.last?.id {
+                                            Divider()
+                                                .background(Color.white.opacity(0.08))
+                                                .padding(.horizontal, 16)
                                         }
                                     }
                                 }
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 16)
-                            .padding(.bottom, 24)
+
+                            inboxBlock(
+                                title: "Friend Requests",
+                                height: max(100, (geo.size.height - 72) / 3)
+                            ) {
+                                if pendingFriendRequests.isEmpty {
+                                    emptyBlockMessage("No friend requests right now.")
+                                } else {
+                                    ForEach(pendingFriendRequests) { user in
+                                        friendRequestRow(user)
+                                        if user.id != pendingFriendRequests.last?.id {
+                                            Divider()
+                                                .background(Color.white.opacity(0.08))
+                                                .padding(.horizontal, 16)
+                                        }
+                                    }
+                                }
+                            }
+
+                            inboxBlock(
+                                title: "Watchlist Requests",
+                                height: max(100, (geo.size.height - 72) / 3)
+                            ) {
+                                if watchlistInvites.isEmpty {
+                                    emptyBlockMessage("No watchlist invites right now.")
+                                } else {
+                                    ForEach(watchlistInvites) { invite in
+                                        watchlistInviteRow(invite)
+                                        if invite.id != watchlistInvites.last?.id {
+                                            Divider()
+                                                .background(Color.white.opacity(0.08))
+                                                .padding(.horizontal, 16)
+                                        }
+                                    }
+                                }
+                            }
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 24)
                     }
                 }
             }
-            .task { await loadInbox() }
-            .refreshable { await loadInbox() }
-            .sheet(isPresented: $showReplySheet) {
-                if let message = replyToMessage,
-                   let token = authStore.accessToken {
-                    // Build a FriendUser from the message sender
-                    let sender = FriendUser(
-                        id: message.sender_id,
-                        display_name: message.sender_name,
-                        email: ""
-                    )
-                    MessageComposeView(
-                        recipient: sender,
-                        token: token,
-                        existingMessage: message,
-                        onDismiss: {
-                            showReplySheet = false
-                            replyToMessage = nil
-                        }
-                    )
-                }
-            }
         }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await loadInbox() }
+        .refreshable { await loadInbox() }
     }
 
     // MARK: - Header
 
     private var headerView: some View {
         VStack(spacing: 0) {
-            // Centered eye logo
             Image("EyeballGraphic")
                 .resizable()
                 .scaledToFit()
@@ -142,15 +117,19 @@ struct InboxView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 16)
 
-            // You've Got Mail row — text tilted, asset to the right
             HStack(alignment: .center, spacing: 12) {
                 Spacer()
 
-                Text("You've Got Mail!")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color("BrandTeal"))
-                    .rotationEffect(.degrees(-8))
-                    .fixedSize()
+                VStack(alignment: .center, spacing: -4) {
+                    Text("You've Got")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundStyle(Color("BrandTeal"))
+                    Text("Mail!")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundStyle(Color("BrandTeal"))
+                }
+                .rotationEffect(.degrees(-8))
+                .fixedSize()
 
                 Image("YouveGotMail")
                     .resizable()
@@ -163,6 +142,7 @@ struct InboxView: View {
             .padding(.bottom, 16)
         }
     }
+
     // MARK: - Block Builder
 
     private func inboxBlock<Content: View>(
@@ -197,14 +177,23 @@ struct InboxView: View {
     }
 
     // MARK: - Row Views
-    
+
     private func messageRow(_ message: Message) -> some View {
-        Button {
-            replyToMessage = message
-            showReplySheet = true
+        let otherId = message.other_user_id ?? message.sender_id
+
+        return NavigationLink {
+            MessageComposeView(
+                recipient: FriendUser(
+                    id: otherId,
+                    display_name: message.sender_name,
+                    email: ""
+                ),
+                token: authStore.accessToken ?? "",
+                existingMessage: message
+            )
         } label: {
             HStack(spacing: 12) {
-                Image("Inbox")
+                Image("EnvelopeIcon")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 22, height: 22)
@@ -222,7 +211,6 @@ struct InboxView: View {
                                 .frame(width: 7, height: 7)
                         }
                     }
-
                     Text("From: \(message.sender_name)")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.5))
@@ -359,11 +347,11 @@ struct InboxView: View {
             async let friendsResponse = friendsService.fetchFriends(token: token)
             async let invitesResponse = inboxService.fetchWatchlistInvites(token: token)
             async let messagesResponse = messageService.fetchMessages(token: token)
-            
+
             let friends = try await friendsResponse
             let invites = try await invitesResponse
             let msgs = try await messagesResponse
-            
+
             messages = msgs
             pendingFriendRequests = friends.pending_received
             watchlistInvites = invites

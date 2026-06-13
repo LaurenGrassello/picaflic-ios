@@ -2,7 +2,7 @@ import SwiftUI
 
 struct WelcomeView: View {
     let username: String
-    
+
     @State private var pulseGlow = false
 
     var body: some View {
@@ -43,8 +43,6 @@ struct WelcomeView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, 26)
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 26)
 
                     Text("Tap your rental card to get started")
                         .font(.footnote)
@@ -52,7 +50,7 @@ struct WelcomeView: View {
                         .padding(.top, 8)
 
                     VStack(alignment: .leading, spacing: 22) {
-                        Text("Select your streaming services,\nrefine what you’re looking for.\nThen we search everything for you.")
+                        Text("Select your streaming services,\nrefine what you're looking for.\nThen we search everything for you.")
                             .font(.title3)
                             .foregroundStyle(.white)
                             .lineSpacing(4)
@@ -84,62 +82,59 @@ struct WelcomeView: View {
     }
 
     private var rentalCard: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14)
-                ZStack(alignment: .bottomTrailing) {
-                    ZStack {
+        ZStack(alignment: .bottomTrailing) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(0.055))
+                    .overlay(
                         RoundedRectangle(cornerRadius: 14)
-                            .fill(Color.white.opacity(0.055))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .stroke(Color("BrandTeal").opacity(0.65), lineWidth: 1.2)
-                            )
-                            .shadow(color: Color("BrandTeal").opacity(0.65), radius: 18, x: 0, y: 0)
-                            .shadow(color: .black.opacity(0.45), radius: 8, x: 0, y: 6)
+                            .stroke(Color("BrandTeal").opacity(0.65), lineWidth: 1.2)
+                    )
+                    .shadow(color: Color("BrandTeal").opacity(0.4), radius: 12)
 
-                        VStack(spacing: 20) {
-                            Image("TealLetterLogo")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 230)
-                                .padding(.top, 22)
-
-                            VStack(spacing: 0) {
-                                HStack {
-                                    Text(username.isEmpty ? "(Username)" : username)
-                                        .font(.title3)
-                                        .foregroundStyle(.white.opacity(0.82))
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.7) // shrinks text for long usernames
-                                        .truncationMode(.tail)
-
-                                    Spacer()
-                                    
-                                    // Right padding so YellowFriend doesn't overlap text
-                                    Color.clear.frame(width: 56)
-                                }
-                                .padding(.horizontal, 26)
-                                .frame(height: 62)
-                                .background(Color("BrandSand").opacity(0.85))
-
-                                Rectangle()
-                                    .fill(Color("BrandGold"))
-                                    .frame(height: 28)
-                            }
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .padding(.horizontal, 22)
-                            .padding(.bottom, 28)
-                        }
-                    }
-                    .frame(height: 230)
-
-                    Image("RedFriend")
+                VStack(spacing: 0) {
+                    Image("TealLetterLogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 90)
-                        .offset(x: -10, y: -10) 
+                        .frame(width: 180)
+                        .padding(.top, 16)
+                        .padding(.bottom, 12)
+
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text(username.isEmpty ? "Welcome" : "Welcome, \(username)")
+                                .font(.title3)
+                                .foregroundStyle(.white.opacity(0.82))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            Spacer()
+                            Color.clear.frame(width: 56)
+                        }
+                        .padding(.horizontal, 20)
+                        .frame(height: 48)
+                        .background(Color("BrandSand").opacity(0.85))
+
+                        Rectangle()
+                            .fill(Color("BrandGold"))
+                            .frame(height: 20)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 20)
                 }
             }
-        .frame(height: 230)
+
+            Image("RedFriend")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 70, height: 70)
+                .offset(x: -10, y: -10)
+        }
+        .frame(height: 180)
+        .padding(.horizontal, 24)
     }
+}
+
+#Preview {
+    WelcomeView(username: "BestBoii")
 }
