@@ -21,7 +21,7 @@ struct AboutView: View {
                     VStack(spacing: 16) {
                         aboutBlock(
                             title: "About Us",
-                            body: "We had a problem, a problem I think a lot of us have struggled with. What to watch! Finding ourselves scrolling endlessly, wasting time to watch the same comfort show or run out of time completely. Looking at all the available options in each app can be daunting. In ode to the Video Rental Shop, we list all the available movies from your subscriptions together. Helping you feel the nostalgia of renting a movie on a Friday night. No longer logging in and out of all your apps and scrolling endlessly. Movie parties are fun! We encourage you to use this app to spend time with friends and loved ones watching movies and having discussions. Create watchlists and spend time enjoying the art of film."
+                            body: "We had a problem, a problem I think a lot of us have struggled with. What to watch! Finding ourselves scrolling endlessly, wasting time to watch the same comfort show or run out of time completely. Looking at all the available options in each app can be daunting.\n\nIn ode to the Video Rental Shop, we list all the available movies from your subscriptions together. Helping you feel the nostalgia of renting a movie on a Friday night. No longer logging in and out of all your apps and scrolling endlessly.\n\n Movie parties are fun! We encourage you to use this app to spend time with friends and loved ones watching movies and having discussions. Create watchlists and spend time enjoying the art of film."
                         )
 
                         aboutBlock(

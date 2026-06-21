@@ -62,7 +62,7 @@ struct ProfileView: View {
                                 }
                             }
                             
-                            Image("YellowFriend")
+                            Image("TealFriend")
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 70, height: 70)
