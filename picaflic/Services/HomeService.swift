@@ -20,4 +20,12 @@ final class HomeService {
         )
         return response
     }
+    
+    func fetchDetails(token: String, tmdbId: Int, isTV: Bool) async throws -> MovieDetails {
+        let kind = isTV ? "tv" : "movie"
+        return try await api.request(
+            path: "/titles/\(kind)/\(tmdbId)",
+            token: token
+        )
+    }
 }

@@ -3,6 +3,7 @@ import Foundation
 final class InboxService {
     private let api = APIClient.shared
     private let friendsService = FriendsService()
+    private let messageService = MessageService()
 
     func fetchWatchlistInvites(token: String) async throws -> [WatchlistInviteItem] {
         let response: WatchlistInvitesResponse = try await api.request(
@@ -31,13 +32,16 @@ final class InboxService {
     func fetchCounts(token: String) async throws -> InboxCounts {
         async let friendsResponse = friendsService.fetchFriends(token: token)
         async let watchlistInvites = fetchWatchlistInvites(token: token)
+        async let unreadCount = messageService.unreadCount(token: token)
 
         let friends = try await friendsResponse
         let invites = try await watchlistInvites
+        let unread = try await unreadCount
 
         return InboxCounts(
             friendRequests: friends.pending_received.count,
-            watchlistInvites: invites.count
+            watchlistInvites: invites.count,
+            unreadMessages: unread
         )
     }
 }

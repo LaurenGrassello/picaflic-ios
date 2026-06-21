@@ -16,9 +16,10 @@ struct WatchlistInvitesResponse: Decodable {
 struct InboxCounts {
     let friendRequests: Int
     let watchlistInvites: Int
+    let unreadMessages: Int
 
     var total: Int {
-        friendRequests + watchlistInvites
+        friendRequests + watchlistInvites + unreadMessages
     }
 }
 

@@ -10,6 +10,15 @@ final class MessageService {
         )
         return response.results
     }
+    
+    func fetchThread(token: String, userId: Int) async throws -> [Message] {
+        struct ThreadResponse: Decodable { let results: [Message] }
+        let response: ThreadResponse = try await api.request(
+            path: "/messages/thread/\(userId)",
+            token: token
+        )
+        return response.results
+    }
 
     func sendMessage(token: String, recipientId: Int, subject: String, body: String) async throws {
         struct Body: Encodable {

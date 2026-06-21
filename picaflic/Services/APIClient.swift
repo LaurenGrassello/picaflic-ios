@@ -39,7 +39,7 @@ final class APIClient {
     static let shared = APIClient()
 
     // Update if your backend runs on a different host/port
-    private let baseURL = "http://localhost:8080"
+    private let baseURL = "https://pic-a-flic-production.up.railway.app"
 
     private init() {}
 

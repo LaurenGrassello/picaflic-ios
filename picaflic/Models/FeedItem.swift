@@ -59,3 +59,14 @@ struct FeedItem: Decodable, Identifiable, Hashable {
 struct FeedResultsResponse: Decodable {
     let results: [FeedItem]
 }
+
+struct MovieDetails: Decodable {
+    let overview: String?
+    let release_date: String?
+    let runtime: Int?
+    let providers: [MovieProvider]?
+}
+
+struct MovieProvider: Decodable {
+    let name: String?
+}
