@@ -24,7 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		E53C1D322F63437300B6F394 /* picaflic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = picaflic.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E53C1D322F63437300B6F394 /* Pic-A-Flic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pic-A-Flic.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E53C1D3F2F63437600B6F394 /* picaflicTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = picaflicTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E53C1D492F63437600B6F394 /* picaflicUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = picaflicUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -85,7 +85,7 @@
 		E53C1D332F63437300B6F394 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E53C1D322F63437300B6F394 /* picaflic.app */,
+				E53C1D322F63437300B6F394 /* Pic-A-Flic.app */,
 				E53C1D3F2F63437600B6F394 /* picaflicTests.xctest */,
 				E53C1D492F63437600B6F394 /* picaflicUITests.xctest */,
 			);
@@ -114,7 +114,7 @@
 			packageProductDependencies = (
 			);
 			productName = picaflic;
-			productReference = E53C1D322F63437300B6F394 /* picaflic.app */;
+			productReference = E53C1D322F63437300B6F394 /* Pic-A-Flic.app */;
 			productType = "com.apple.product-type.application";
 		};
 		E53C1D3E2F63437600B6F394 /* picaflicTests */ = {
@@ -395,6 +395,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8M695ZY3PX;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -408,7 +409,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.picaflic.picaflic;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Pic-A-Flic";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -426,6 +427,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8M695ZY3PX;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -439,7 +441,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.picaflic.picaflic;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Pic-A-Flic";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
