@@ -30,43 +30,53 @@ struct SwipeView: View {
             Color("BrandCharcoal")
                 .ignoresSafeArea()
 
-            VStack(spacing: 20) {
-                headerView
+            GeometryReader { geo in
+                let cardWidth = min(geo.size.width * 0.8, 320)
+                let infoHeight: CGFloat = 130
+                // Reserve space for header (~170) and controls (~58 button + 24 padding)
+                let reservedHeight: CGFloat = 140 + 58 + 24 + 10
+                let maxCardHeight = max(geo.size.height - reservedHeight, 260)
+                let cardHeight = min(cardWidth * 1.5 + infoHeight + 150, maxCardHeight)
+                let imageHeight = cardHeight - infoHeight
 
-                Spacer()
+                VStack(spacing: 16) {
+                    headerView
 
-                if showLikeFeedback {
-                    Text(likeFeedbackMessage)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color("BrandTeal"))
-                        .clipShape(Capsule())
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                    Spacer(minLength: 0)
+
+                    if showLikeFeedback {
+                        Text(likeFeedbackMessage)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color("BrandTeal"))
+                            .clipShape(Capsule())
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+
+                    if isLoading {
+                        ProgressView("Loading picks...")
+                            .tint(Color("BrandSand"))
+                            .foregroundStyle(Color("BrandSand"))
+                    } else if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .foregroundStyle(Color("BrandRust"))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                    } else if let item = currentItem {
+                        swipeCard(for: item, cardWidth: cardWidth, cardHeight: cardHeight, imageHeight: imageHeight)
+                    } else {
+                        emptyStateView
+                    }
+
+                    controlsView
+                        .padding(.top, 4)
+                        .padding(.bottom, 60)
                 }
-
-                if isLoading {
-                    ProgressView("Loading picks...")
-                        .tint(Color("BrandSand"))
-                        .foregroundStyle(Color("BrandSand"))
-                } else if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundStyle(Color("BrandRust"))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                } else if let item = currentItem {
-                    swipeCard(for: item)
-                } else {
-                    emptyStateView
-                }
-
-                Spacer()
-
-                controlsView
-                    .padding(.bottom, 90)
+                .padding()
+                .frame(width: geo.size.width, height: geo.size.height)
             }
-            .padding()
         }
         .navigationBarBackButtonHidden(true)
         .navigationDestination(isPresented: $showMatchesScreen) {
@@ -125,16 +135,16 @@ struct SwipeView: View {
     // MARK: - Swipe Card
 
     @ViewBuilder
-    private func swipeCard(for item: FeedItem) -> some View {
+    private func swipeCard(for item: FeedItem, cardWidth: CGFloat, cardHeight: CGFloat, imageHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
             ZStack {
                 if isShowingBack {
-                    backCardView(for: item)
+                    backCardView(for: item, cardWidth: cardWidth, cardHeight: cardHeight)
                 } else {
-                    frontCardView(for: item)
+                    frontCardView(for: item, cardWidth: cardWidth, imageHeight: imageHeight)
                 }
             }
-            .frame(width: 300, height: 520)
+            .frame(width: cardWidth, height: cardHeight)
             .background(Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 6)
@@ -162,7 +172,7 @@ struct SwipeView: View {
 
     // MARK: - Front Card
 
-    private func frontCardView(for item: FeedItem) -> some View {
+    private func frontCardView(for item: FeedItem, cardWidth: CGFloat, imageHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
             Group {
                 if let posterURL = item.posterURL {
@@ -185,12 +195,13 @@ struct SwipeView: View {
                     VHSMoviePlaceholderView()
                 }
             }
-            .frame(width: 300, height: 410)
+            .frame(width: cardWidth, height: imageHeight)
+            .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 24))
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text(item.title)
-                    .font(.title2.weight(.bold))
+                    .font(.title3.weight(.bold))
                     .foregroundStyle(Color("BrandSand"))
                     .lineLimit(2)
 
@@ -204,18 +215,17 @@ struct SwipeView: View {
                 Text("Tap card for details")
                     .font(.caption)
                     .foregroundStyle(Color("BrandTeal"))
-                    .padding(.top, 2)
             }
-            .frame(width: 300, alignment: .leading)
-            .padding(.top, 16)
-            .padding(.bottom, 14)
+            .frame(width: cardWidth, alignment: .leading)
+            .padding(.top, 12)
+            .padding(.horizontal, 4)
         }
         .background(Color.clear)
     }
 
     // MARK: - Back Card
 
-    private func backCardView(for item: FeedItem) -> some View {
+    private func backCardView(for item: FeedItem, cardWidth: CGFloat, cardHeight: CGFloat) -> some View {
         let details = item.localId.flatMap { loadedDetails[$0] }
 
         return RoundedRectangle(cornerRadius: 24)
@@ -327,7 +337,7 @@ struct SwipeView: View {
                     .padding(24)
                 }
             }
-            .frame(width: 300, height: 520)
+            .frame(width: cardWidth, height: cardHeight)
     }
 
     // MARK: - Controls

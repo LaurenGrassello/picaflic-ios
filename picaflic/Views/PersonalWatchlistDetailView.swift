@@ -104,14 +104,9 @@ struct PersonalWatchlistDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 18))
 
                 // Service badge
-                if let asset = movie.providerAsset {
-                    Image(asset)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 28, height: 28)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .shadow(color: .black.opacity(0.5), radius: 4)
-                        .padding(8)
+                if !movie.providers.isEmpty {
+                    ProviderIconStack(providers: movie.providers)
+                        .padding(6)
                 }
             }
 

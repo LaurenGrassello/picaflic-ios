@@ -37,6 +37,7 @@ struct RegisterView: View {
                             .foregroundStyle(Color("BrandSand").opacity(0.9))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 24)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     VStack(spacing: 18) {

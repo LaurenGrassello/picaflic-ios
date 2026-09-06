@@ -8,9 +8,9 @@ struct FeedItem: Decodable, Identifiable, Hashable {
     let popularity: Double?
     let release_date: String?
     let poster_path: String?
-    let provider_id: Int?
-    let provider_name: String?
-    let genre_ids: String?   // comma-separated e.g. "28,12,878"
+    let provider_ids: String?     // comma-separated, e.g. "8,15,337"
+    let provider_names: String?   // pipe-separated, e.g. "Netflix|Hulu|Disney Plus"
+    let genre_ids: String?        // comma-separated e.g. "28,12,878"
 
     var localId: Int? { id }
     var isTV: Bool { is_tv == 1 }
@@ -40,9 +40,30 @@ struct FeedItem: Decodable, Identifiable, Hashable {
         37: "Western"
     ]
 
-    var providerAsset: String? {
-        guard let pid = provider_id else { return nil }
-        switch pid {
+    // MARK: - Providers
+
+    var providerIdList: [Int] {
+        guard let provider_ids else { return [] }
+        return provider_ids.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+    }
+
+    var providerNameList: [String] {
+        guard let provider_names else { return [] }
+        return provider_names.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    /// Ordered (id, name, asset) tuples for every service this title is on.
+    var providers: [(id: Int, name: String, asset: String?)] {
+        let ids = providerIdList
+        let names = providerNameList
+        return ids.enumerated().map { index, pid in
+            let name = index < names.count ? names[index] : ""
+            return (id: pid, name: name, asset: Self.assetName(for: pid))
+        }
+    }
+
+    static func assetName(for providerId: Int) -> String? {
+        switch providerId {
         case 8:    return "ServiceNetflix"
         case 9:    return "ServicePrimeVideo"
         case 15:   return "ServiceHulu"
@@ -56,6 +77,7 @@ struct FeedItem: Decodable, Identifiable, Hashable {
         }
     }
 }
+
 struct FeedResultsResponse: Decodable {
     let results: [FeedItem]
 }

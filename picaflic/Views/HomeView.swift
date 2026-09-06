@@ -45,8 +45,8 @@ struct HomeView: View {
     ]
 
     private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16)
+        GridItem(.flexible(), spacing: 20),
+        GridItem(.flexible(), spacing: 20)
     ]
 
     // MARK: - Body
@@ -126,12 +126,12 @@ struct HomeView: View {
                         emptyStateView
                     } else {
                         ScrollView {
-                            LazyVGrid(columns: columns, spacing: 18) {
+                            LazyVGrid(columns: columns, spacing: 24) {
                                 ForEach(filteredMovies) { movie in
                                     movieCard(movie)
                                 }
                             }
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, 28)
 
                             if isLoadingMore {
                                 ProgressView()
@@ -257,7 +257,7 @@ struct HomeView: View {
                 Text("❤️ LIKE")
                     .font(.title.weight(.black))
                     .foregroundStyle(Color("BrandTeal"))
-                    .padding(10)
+                    .padding(8)
                     .background(Color.black.opacity(0.5))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .rotationEffect(.degrees(-15))
@@ -268,7 +268,7 @@ struct HomeView: View {
                 Text("⏭ SKIP")
                     .font(.title.weight(.black))
                     .foregroundStyle(Color("BrandGold"))
-                    .padding(10)
+                    .padding(8)
                     .background(Color.black.opacity(0.5))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .rotationEffect(.degrees(15))
@@ -332,7 +332,7 @@ struct HomeView: View {
                     if let year = formattedYear(from: item.release_date) {
                         swipeTagView(year, color: Color("BrandGold"))
                     }
-                    if let asset = item.providerAsset {
+                    if let asset = item.providers.first?.asset {
                         Image(asset)
                             .resizable()
                             .scaledToFill()
@@ -872,11 +872,11 @@ struct HomeView: View {
         var seen = Set<Int>()
         var result: [(Int, String, String?)] = []
         for movie in movies {
-            guard let pid = movie.provider_id,
-                  let name = movie.provider_name,
-                  !seen.contains(pid) else { continue }
-            seen.insert(pid)
-            result.append((pid, name, movie.providerAsset))
+            for provider in movie.providers {
+                guard !seen.contains(provider.id), !provider.name.isEmpty else { continue }
+                seen.insert(provider.id)
+                result.append((provider.id, provider.name, provider.asset))
+            }
         }
         return result.sorted { $0.1 < $1.1 }
     }
@@ -884,7 +884,7 @@ struct HomeView: View {
     private var filteredMovies: [FeedItem] {
         movies.filter { movie in
             if let id = movie.localId, dislikedIds.contains(id) { return false }
-            if let sid = selectedServiceId, movie.provider_id != sid { return false }
+            if let sid = selectedServiceId, !movie.providerIdList.contains(sid) { return false }
             if let type = selectedType {
                 if type == "movie" && movie.isTV { return false }
                 if type == "tv" && !movie.isTV { return false }
@@ -897,106 +897,123 @@ struct HomeView: View {
     // MARK: - Movie Card
 
     private func movieCard(_ movie: FeedItem) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ZStack(alignment: .topLeading) {
-                Group {
-                    if let posterURL = movie.posterURL {
-                        AsyncImage(url: posterURL) { phase in
-                            switch phase {
-                            case .empty:
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.08))
-                                    ProgressView().tint(Color("BrandSand"))
-                                }
-                            case .success(let image):
-                                image.resizable().scaledToFill()
-                            case .failure:
-                                VHSMoviePlaceholderView()
-                            @unknown default:
-                                VHSMoviePlaceholderView()
-                            }
+        VStack(alignment: .leading, spacing: 8) {
+            posterSection(for: movie)
+            infoSection(for: movie)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.05))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    @ViewBuilder
+    private func posterSection(for movie: FeedItem) -> some View {
+        ZStack(alignment: .topLeading) {
+            posterImage(for: movie)
+
+            if !movie.providers.isEmpty {
+                ProviderIconStack(providers: movie.providers)
+                    .padding(6)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func posterImage(for movie: FeedItem) -> some View {
+        Group {
+            if let posterURL = movie.posterURL {
+                AsyncImage(url: posterURL) { phase in
+                    switch phase {
+                    case .empty:
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.08))
+                            ProgressView().tint(Color("BrandSand"))
                         }
-                    } else {
+                    case .success(let image):
+                        image.resizable().aspectRatio(2/3, contentMode: .fill)
+                    case .failure:
+                        VHSMoviePlaceholderView()
+                    @unknown default:
                         VHSMoviePlaceholderView()
                     }
                 }
-                .frame(height: 230)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-
-                if let asset = movie.providerAsset {
-                    Image(asset)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 28, height: 28)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .shadow(color: .black.opacity(0.5), radius: 4)
-                        .padding(8)
-                }
+            } else {
+                VHSMoviePlaceholderView()
             }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(movie.title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color("BrandSand"))
-                    .lineLimit(2)
-
-                HStack(spacing: 8) {
-                    tagView(movie.isTV ? "TV" : "Movie")
-                    if let year = formattedYear(from: movie.release_date) {
-                        tagView(year)
-                    }
-                }
-
-                HStack(spacing: 12) {
-                    Button {
-                        Task { await likeMovie(movie) }
-                    } label: {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(likeColor(for: movie))
-                            .frame(width: 34, height: 34)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        addToWatchlistMovie = movie
-                    } label: {
-                        Image(systemName: "bookmark.fill")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(Color("BrandTeal"))
-                            .frame(width: 34, height: 34)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        Task { await dislikeMovie(movie) }
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(dislikeColor(for: movie))
-                            .frame(width: 34, height: 34)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.top, 2)
-            }
-            .padding(.horizontal, 4)
         }
-        .padding(12)
-        .background(Color.white.opacity(0.05))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .aspectRatio(2/3, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
+    @ViewBuilder
+    private func infoSection(for movie: FeedItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(movie.title)
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(Color("BrandSand"))
+                .lineLimit(2)
+                .frame(height: 30, alignment: .top)
+
+            HStack(spacing: 6) {
+                tagView(movie.isTV ? "TV" : "Movie")
+                if let year = formattedYear(from: movie.release_date) {
+                    tagView(year)
+                }
+            }
+
+            actionButtons(for: movie)
+                .padding(.top, 1)
+        }
+        .padding(.horizontal, 3)
+    }
+
+    @ViewBuilder
+    private func actionButtons(for movie: FeedItem) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                Task { await likeMovie(movie) }
+            } label: {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(likeColor(for: movie))
+                    .frame(width: 28, height: 28)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                addToWatchlistMovie = movie
+            } label: {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color("BrandTeal"))
+                    .frame(width: 28, height: 28)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                Task { await dislikeMovie(movie) }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(dislikeColor(for: movie))
+                    .frame(width: 28, height: 28)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
     // MARK: - Helpers
 
     private var emptyStateView: some View {
@@ -1021,8 +1038,8 @@ struct HomeView: View {
         Text(text)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
             .background(Color("BrandGold"))
             .clipShape(Capsule())
     }
