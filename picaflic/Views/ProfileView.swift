@@ -88,11 +88,12 @@ struct ProfileView: View {
                                             Image(inboxStore.pendingCount > 0 ? "Inbox_Envelope" : "Inbox")
                                                 .resizable()
                                                 .scaledToFit()
-                                                .frame(width: 32, height: 32)
+                                                .frame(width: 22, height: 22)
                                         }
                                     }
                                 }
                                 .buttonStyle(.plain)
+                                .frame(maxWidth: .infinity)
                                 
                                 // Search
                                 NavigationLink {
@@ -103,10 +104,11 @@ struct ProfileView: View {
                                         Image("Mystery_or_Search")
                                             .resizable()
                                             .scaledToFit()
-                                            .frame(width: 32, height: 32)
+                                            .frame(width: 22, height: 22)
                                     }
                                 }
                                 .buttonStyle(.plain)
+                                .frame(maxWidth: .infinity)
                             }
                             
                             HStack(spacing: 14) {
@@ -119,10 +121,11 @@ struct ProfileView: View {
                                         Image("EyeballGraphic")
                                             .resizable()
                                             .scaledToFit()
-                                            .frame(width: 32, height: 32)
+                                            .frame(width: 22, height: 22)
                                     }
                                 }
                                 .buttonStyle(.plain)
+                                .frame(maxWidth: .infinity)
                                 
                                 // Friends
                                 NavigationLink {
@@ -133,10 +136,11 @@ struct ProfileView: View {
                                         Image("Friends_Avatars")
                                             .resizable()
                                             .scaledToFit()
-                                            .frame(width: 32, height: 32)
+                                            .frame(width: 22, height: 22)
                                     }
                                 }
                                 .buttonStyle(.plain)
+                                .frame(maxWidth: .infinity)
                             }
                             
                             HStack(spacing: 14) {
@@ -148,10 +152,11 @@ struct ProfileView: View {
                                         Image("LogoEyeV2")
                                             .resizable()
                                             .scaledToFit()
-                                            .frame(width: 32, height: 32)
+                                            .frame(width: 22, height: 22)
                                     }
                                 }
                                 .buttonStyle(.plain)
+                                .frame(maxWidth: .infinity)
                                 
                                 // Settings
                                 NavigationLink {
@@ -162,10 +167,11 @@ struct ProfileView: View {
                                         Image("Settings")
                                             .resizable()
                                             .scaledToFit()
-                                            .frame(width: 32, height: 32)
+                                            .frame(width: 22, height: 22)
                                     }
                                 }
                                 .buttonStyle(.plain)
+                                .frame(maxWidth: .infinity)
                             }
                         }
                         .padding(.horizontal, 24)
@@ -205,7 +211,7 @@ struct ProfileView: View {
         badge: Int? = nil,
         @ViewBuilder icon: () -> Icon
     ) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             ZStack(alignment: .topTrailing) {
                 icon()
 
@@ -221,13 +227,16 @@ struct ProfileView: View {
             }
 
             Text(title)
-                .font(.headline.weight(.bold))
+                .font(.subheadline.weight(.bold))
                 .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .layoutPriority(1)
 
             Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.vertical, 22)
         .background(Color("BrandTeal").opacity(0.85))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }

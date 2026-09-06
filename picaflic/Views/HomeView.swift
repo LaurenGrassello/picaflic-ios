@@ -26,6 +26,7 @@ struct HomeView: View {
     @State private var showGenrePicker = false
     @State private var showTypePicker = false
     @State private var showServicePicker = false
+    @State private var selectedMovieForDetail: FeedItem? = nil
 
     // MARK: - Swipe mode state
     @State private var swipeItems: [FeedItem] = []
@@ -129,6 +130,15 @@ struct HomeView: View {
                             LazyVGrid(columns: columns, spacing: 24) {
                                 ForEach(filteredMovies) { movie in
                                     movieCard(movie)
+                                        .onAppear {
+                                            guard hasMore,
+                                                  searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                                                  let index = filteredMovies.firstIndex(where: { $0.id == movie.id }) else { return }
+                                            // Trigger the next page when the 4th-from-last card appears
+                                            if index >= filteredMovies.count - 4 {
+                                                Task { await loadHome(reset: false) }
+                                            }
+                                        }
                                 }
                             }
                             .padding(.horizontal, 28)
@@ -137,14 +147,6 @@ struct HomeView: View {
                                 ProgressView()
                                     .tint(Color("BrandSand"))
                                     .padding(.vertical, 20)
-                            }
-
-                            if hasMore && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Color.clear
-                                    .frame(height: 1)
-                                    .onAppear {
-                                        Task { await loadHome(reset: false) }
-                                    }
                             }
                         }
                         .padding(.bottom, 24)
@@ -166,8 +168,13 @@ struct HomeView: View {
         }
         .refreshable { await loadHome(reset: true) }
         .sheet(isPresented: $showGenrePicker) { genrePickerSheet }
-        .sheet(isPresented: $showTypePicker) { typePickerSheet }
+//        .sheet(isPresented: $showTypePicker) { typePickerSheet }
         .sheet(isPresented: $showServicePicker) { servicePickerSheet }
+        .sheet(item: $selectedMovieForDetail) { movie in
+            if let token = authStore.accessToken {
+                MovieDetailSheet(movie: movie, token: token)
+            }
+        }
         .sheet(item: $addToWatchlistMovie) { movie in
             if let token = authStore.accessToken {
                 AddToWatchlistSheet(movie: movie, token: token) {
@@ -694,22 +701,22 @@ struct HomeView: View {
                 .buttonStyle(.plain)
 
                 // Movies / TV picker
-                Button {
-                    showTypePicker = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(selectedType == "movie" ? "Movies" : selectedType == "tv" ? "TV" : "Movies & TV")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(selectedType != nil ? .white : Color("BrandSand"))
-                        Image(systemName: "chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(selectedType != nil ? .white : Color("BrandSand"))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(selectedType != nil ? Color("BrandTeal") : Color.white.opacity(0.06))
-                    .clipShape(Capsule())
-                }
+//                Button {
+//                    showTypePicker = true
+//                } label: {
+//                    HStack(spacing: 4) {
+//                        Text(selectedType == "movie" ? "Movies" : selectedType == "tv" ? "TV" : "Movies & TV")
+//                            .font(.caption.weight(.semibold))
+//                            .foregroundStyle(selectedType != nil ? .white : Color("BrandSand"))
+//                        Image(systemName: "chevron.down")
+//                            .font(.caption2)
+//                            .foregroundStyle(selectedType != nil ? .white : Color("BrandSand"))
+//                    }
+//                    .padding(.horizontal, 12)
+//                    .padding(.vertical, 8)
+//                    .background(selectedType != nil ? Color("BrandTeal") : Color.white.opacity(0.06))
+//                    .clipShape(Capsule())
+//                }About
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
@@ -826,45 +833,45 @@ struct HomeView: View {
             .presentationDetents([.medium])
         }
     // MARK: - Type Sheet
-
-    private var typePickerSheet: some View {
-        NavigationStack {
-            ZStack {
-                Color("BrandCharcoal").ignoresSafeArea()
-                List {
-                    ForEach([
-                        (nil as String?, "Movies & TV"),
-                        ("movie", "Movies only"),
-                        ("tv", "TV only")
-                    ], id: \.1) { (value, label) in
-                        Button {
-                            selectedType = value
-                            showTypePicker = false
-                        } label: {
-                            HStack {
-                                Text(label).foregroundStyle(.white)
-                                Spacer()
-                                if selectedType == value {
-                                    Image(systemName: "checkmark").foregroundStyle(Color("BrandTeal"))
-                                }
-                            }
-                        }
-                        .listRowBackground(Color.white.opacity(0.06))
-                    }
-                }
-                .scrollContentBackground(.hidden)
-            }
-            .navigationTitle("Type")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { showTypePicker = false }
-                        .foregroundStyle(Color("BrandTeal"))
-                }
-            }
-        }
-        .presentationDetents([.height(220)])
-    }
+//
+//    private var typePickerSheet: some View {
+//        NavigationStack {
+//            ZStack {
+//                Color("BrandCharcoal").ignoresSafeArea()
+//                List {
+//                    ForEach([
+//                        (nil as String?, "Movies & TV"),
+//                        ("movie", "Movies only"),
+//                        ("tv", "TV only")
+//                    ], id: \.1) { (value, label) in
+//                        Button {
+//                            selectedType = value
+//                            showTypePicker = false
+//                        } label: {
+//                            HStack {
+//                                Text(label).foregroundStyle(.white)
+//                                Spacer()
+//                                if selectedType == value {
+//                                    Image(systemName: "checkmark").foregroundStyle(Color("BrandTeal"))
+//                                }
+//                            }
+//                        }
+//                        .listRowBackground(Color.white.opacity(0.06))
+//                    }
+//                }
+//                .scrollContentBackground(.hidden)
+//            }
+//            .navigationTitle("Type")
+//            .navigationBarTitleDisplayMode(.inline)
+//            .toolbar {
+//                ToolbarItem(placement: .topBarTrailing) {
+//                    Button("Done") { showTypePicker = false }
+//                        .foregroundStyle(Color("BrandTeal"))
+//                }
+//            }
+//        }
+//        .presentationDetents([.height(220)])
+//    }
 
     // MARK: - Computed
 
@@ -915,6 +922,9 @@ struct HomeView: View {
     private func posterSection(for movie: FeedItem) -> some View {
         ZStack(alignment: .topLeading) {
             posterImage(for: movie)
+                .onTapGesture {
+                    selectedMovieForDetail = movie
+                }
 
             if !movie.providers.isEmpty {
                 ProviderIconStack(providers: movie.providers)
