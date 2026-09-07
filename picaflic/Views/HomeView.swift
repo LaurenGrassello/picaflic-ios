@@ -157,6 +157,7 @@ struct HomeView: View {
         .task {
             if movies.isEmpty {
                 try? await Task.sleep(nanoseconds: 100_000_000)
+                await syncPreferences()
                 await loadHome(reset: true)
             }
         }
@@ -166,9 +167,11 @@ struct HomeView: View {
                 Task { await loadSwipeFeed() }
             }
         }
-        .refreshable { await loadHome(reset: true) }
+        .refreshable {
+            await syncPreferences()
+            await loadHome(reset: true)
+        }
         .sheet(isPresented: $showGenrePicker) { genrePickerSheet }
-//        .sheet(isPresented: $showTypePicker) { typePickerSheet }
         .sheet(isPresented: $showServicePicker) { servicePickerSheet }
         .sheet(item: $selectedMovieForDetail) { movie in
             if let token = authStore.accessToken {
@@ -236,6 +239,19 @@ struct HomeView: View {
             .padding(.horizontal, 20)
         }
         .padding(.top, 12)
+    }
+
+    private func syncPreferences() async {
+        guard let token = authStore.accessToken else { return }
+        do {
+            async let likedResult = preferenceService.fetchLikedMovies(token: token)
+            async let dislikedResult = preferenceService.fetchDislikedMovieIds(token: token)
+            let (liked, disliked) = try await (likedResult, dislikedResult)
+            likedIds = Set(liked.map { $0.id })
+            dislikedIds = disliked
+        } catch {
+            print("SYNC PREFERENCES ERROR:", error)
+        }
     }
 
     // MARK: - Swipe Card
@@ -699,25 +715,6 @@ struct HomeView: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
-
-                // Movies / TV picker
-//                Button {
-//                    showTypePicker = true
-//                } label: {
-//                    HStack(spacing: 4) {
-//                        Text(selectedType == "movie" ? "Movies" : selectedType == "tv" ? "TV" : "Movies & TV")
-//                            .font(.caption.weight(.semibold))
-//                            .foregroundStyle(selectedType != nil ? .white : Color("BrandSand"))
-//                        Image(systemName: "chevron.down")
-//                            .font(.caption2)
-//                            .foregroundStyle(selectedType != nil ? .white : Color("BrandSand"))
-//                    }
-//                    .padding(.horizontal, 12)
-//                    .padding(.vertical, 8)
-//                    .background(selectedType != nil ? Color("BrandTeal") : Color.white.opacity(0.06))
-//                    .clipShape(Capsule())
-//                }About
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
         }
@@ -832,46 +829,6 @@ struct HomeView: View {
             }
             .presentationDetents([.medium])
         }
-    // MARK: - Type Sheet
-//
-//    private var typePickerSheet: some View {
-//        NavigationStack {
-//            ZStack {
-//                Color("BrandCharcoal").ignoresSafeArea()
-//                List {
-//                    ForEach([
-//                        (nil as String?, "Movies & TV"),
-//                        ("movie", "Movies only"),
-//                        ("tv", "TV only")
-//                    ], id: \.1) { (value, label) in
-//                        Button {
-//                            selectedType = value
-//                            showTypePicker = false
-//                        } label: {
-//                            HStack {
-//                                Text(label).foregroundStyle(.white)
-//                                Spacer()
-//                                if selectedType == value {
-//                                    Image(systemName: "checkmark").foregroundStyle(Color("BrandTeal"))
-//                                }
-//                            }
-//                        }
-//                        .listRowBackground(Color.white.opacity(0.06))
-//                    }
-//                }
-//                .scrollContentBackground(.hidden)
-//            }
-//            .navigationTitle("Type")
-//            .navigationBarTitleDisplayMode(.inline)
-//            .toolbar {
-//                ToolbarItem(placement: .topBarTrailing) {
-//                    Button("Done") { showTypePicker = false }
-//                        .foregroundStyle(Color("BrandTeal"))
-//                }
-//            }
-//        }
-//        .presentationDetents([.height(220)])
-//    }
 
     // MARK: - Computed
 
@@ -990,12 +947,19 @@ struct HomeView: View {
             Button {
                 Task { await likeMovie(movie) }
             } label: {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(likeColor(for: movie))
-                    .frame(width: 28, height: 28)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(Circle())
+                ZStack {
+                    if isLiked(movie) {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color("BrandRust"))
+                    }
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color("BrandGold"))
+                }
+                .frame(width: 28, height: 28)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Circle())
             }
             .buttonStyle(.plain)
 
@@ -1014,12 +978,19 @@ struct HomeView: View {
             Button {
                 Task { await dislikeMovie(movie) }
             } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(dislikeColor(for: movie))
-                    .frame(width: 28, height: 28)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(Circle())
+                ZStack {
+                    if isDisliked(movie) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color("BrandRust"))
+                    }
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color("BrandGold"))
+                }
+                .frame(width: 28, height: 28)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Circle())
             }
             .buttonStyle(.plain)
         }
@@ -1059,14 +1030,14 @@ struct HomeView: View {
         return String(releaseDate.prefix(4))
     }
 
-    private func likeColor(for movie: FeedItem) -> Color {
-        guard let id = movie.localId else { return Color("BrandGold") }
-        return likedIds.contains(id) ? Color("BrandTeal") : Color("BrandGold")
+    private func isLiked(_ movie: FeedItem) -> Bool {
+        guard let id = movie.localId else { return false }
+        return likedIds.contains(id)
     }
 
-    private func dislikeColor(for movie: FeedItem) -> Color {
-        guard let id = movie.localId else { return Color("BrandRust") }
-        return dislikedIds.contains(id) ? Color("BrandTeal") : Color("BrandRust")
+    private func isDisliked(_ movie: FeedItem) -> Bool {
+        guard let id = movie.localId else { return false }
+        return dislikedIds.contains(id)
     }
 
     // MARK: - Data
@@ -1140,10 +1111,16 @@ struct HomeView: View {
     private func likeMovie(_ movie: FeedItem) async {
         guard let token = authStore.accessToken,
               let localId = movie.localId else { return }
+        let alreadyLiked = likedIds.contains(localId)
+        let newStatus = alreadyLiked ? "none" : "liked"
         do {
-            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: "liked")
-            likedIds.insert(localId)
-            dislikedIds.remove(localId)
+            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: newStatus)
+            if alreadyLiked {
+                likedIds.remove(localId)
+            } else {
+                likedIds.insert(localId)
+                dislikedIds.remove(localId)
+            }
         } catch {
             print("LIKE MOVIE ERROR:", error)
         }
@@ -1152,10 +1129,16 @@ struct HomeView: View {
     private func dislikeMovie(_ movie: FeedItem) async {
         guard let token = authStore.accessToken,
               let localId = movie.localId else { return }
+        let alreadyDisliked = dislikedIds.contains(localId)
+        let newStatus = alreadyDisliked ? "none" : "disliked"
         do {
-            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: "disliked")
-            dislikedIds.insert(localId)
-            likedIds.remove(localId)
+            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: newStatus)
+            if alreadyDisliked {
+                dislikedIds.remove(localId)
+            } else {
+                dislikedIds.insert(localId)
+                likedIds.remove(localId)
+            }
         } catch {
             print("DISLIKE MOVIE ERROR:", error)
         }

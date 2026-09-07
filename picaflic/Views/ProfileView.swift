@@ -235,7 +235,7 @@ struct ProfileView: View {
 
             Spacer()
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 10)
         .padding(.vertical, 22)
         .background(Color("BrandTeal").opacity(0.85))
         .clipShape(RoundedRectangle(cornerRadius: 14))

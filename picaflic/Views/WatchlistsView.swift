@@ -60,6 +60,41 @@ struct WatchlistsView: View {
 
                                     // Block content
                                     VStack(spacing: 0) {
+                                        // Liked Movies — always present, backed by your like preferences
+                                        NavigationLink {
+                                            LikedMoviesView()
+                                                .environmentObject(authStore)
+                                        } label: {
+                                            HStack(spacing: 10) {
+                                                ZStack {
+                                                    Image(systemName: "heart.fill")
+                                                        .font(.system(size: 14, weight: .bold))
+                                                        .foregroundStyle(Color("BrandRust"))
+                                                    Image(systemName: "heart.fill")
+                                                        .font(.system(size: 11, weight: .bold))
+                                                        .foregroundStyle(Color("BrandGold"))
+                                                }
+                                                .frame(width: 20, height: 20)
+
+                                                Text("Liked Movies")
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(Color("BrandGold"))
+
+                                                Spacer()
+
+                                                Image(systemName: "chevron.right")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.white.opacity(0.3))
+                                            }
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 14)
+                                        }
+                                        .buttonStyle(.plain)
+
+                                        Divider()
+                                            .background(Color.white.opacity(0.08))
+                                            .padding(.horizontal, 16)
+
                                         if personalWatchlists.isEmpty {
                                             Text("No personal watchlists yet. Tap + to create one.")
                                                 .font(.subheadline)
