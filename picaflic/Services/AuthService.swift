@@ -35,4 +35,17 @@ final class AuthService {
         )
         return response
     }
+    
+    func refresh(refreshToken: String) async throws -> AuthResponse {
+        struct RefreshRequest: Encodable {
+            let refresh_token: String
+        }
+        let request = RefreshRequest(refresh_token: refreshToken)
+        let response: AuthResponse = try await api.request(
+            path: "/auth/refresh",
+            method: "POST",
+            body: request
+        )
+        return response
+    }
 }
