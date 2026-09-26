@@ -58,4 +58,24 @@ final class WatchlistService {
             body: body
         )
     }
+    
+    func renameWatchlist(token: String, watchlistId: Int, name: String) async throws {
+        struct Body: Encodable { let name: String }
+        struct RenameResponse: Decodable { let ok: Bool }
+        let _: RenameResponse = try await api.request(
+            path: "/social/watchlists/\(watchlistId)",
+            method: "PATCH",
+            token: token,
+            body: Body(name: name)
+        )
+    }
+
+    func deleteWatchlist(token: String, watchlistId: Int) async throws {
+        struct OkResponse: Decodable { let ok: Bool }
+        let _: OkResponse = try await api.request(
+            path: "/social/watchlists/\(watchlistId)",
+            method: "DELETE",
+            token: token
+        )
+    }
 }

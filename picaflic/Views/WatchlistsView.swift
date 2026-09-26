@@ -105,8 +105,12 @@ struct WatchlistsView: View {
                                         } else {
                                             ForEach(personalWatchlists) { wl in
                                                 NavigationLink {
-                                                    PersonalWatchlistDetailView(watchlist: wl)
-                                                        .environmentObject(authStore)
+                                                    PersonalWatchlistDetailView(
+                                                        watchlist: wl,
+                                                        onUpdated: { Task { await loadPersonalWatchlists() } },
+                                                        onDeleted: { Task { await loadPersonalWatchlists() } }
+                                                    )
+                                                    .environmentObject(authStore)
                                                 } label: {
                                                     HStack(spacing: 10) {
                                                         Image("EyeballGraphic")
@@ -289,8 +293,12 @@ struct WatchlistsView: View {
                                                 NavigationLink {
                                                     WatchlistDetailView(
                                                         watchlistId: watchlist.id,
-                                                        watchlistName: watchlist.name
+                                                        watchlistName: watchlist.name,
+                                                        createdBy: watchlist.created_by,
+                                                        onUpdated: { Task { await loadWatchlists() } },
+                                                        onDeleted: { Task { await loadWatchlists() } }
                                                     )
+                                                    .environmentObject(authStore)
                                                 } label: {
                                                     HStack(spacing: 10) {
                                                         Image("EyeballGraphic")

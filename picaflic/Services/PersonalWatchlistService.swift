@@ -50,6 +50,17 @@ final class PersonalWatchlistService {
         )
         return response.watchlist
     }
+    
+    func renameWatchlist(token: String, watchlistId: Int, name: String) async throws {
+        struct Body: Encodable { let name: String }
+        struct RenameResponse: Decodable { let ok: Bool }
+        let _: RenameResponse = try await api.request(
+            path: "/personal-watchlists/\(watchlistId)",
+            method: "PATCH",
+            token: token,
+            body: Body(name: name)
+        )
+    }
 
     func addMovie(token: String, watchlistId: Int, movieId: Int) async throws {
         struct Body: Encodable { let movie_id: Int }

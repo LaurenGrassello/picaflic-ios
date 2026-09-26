@@ -2,11 +2,15 @@ import SwiftUI
 
 struct PersonalWatchlistDetailView: View {
     let watchlist: PersonalWatchlist
+    var onUpdated: (() -> Void)? = nil
+    var onDeleted: (() -> Void)? = nil
 
     private let service = PersonalWatchlistService()
     private let friendsService = FriendsService()
 
     @EnvironmentObject var authStore: AuthStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var displayName: String
     @State private var movies: [FeedItem] = []
     @State private var isLoading = false
     @State private var errorMessage = ""
@@ -18,6 +22,21 @@ struct PersonalWatchlistDetailView: View {
     @State private var isLoadingFriends = false
     @State private var sharingToUserId: Int? = nil
     @State private var shareFeedback = ""
+
+    @State private var showRenameAlert = false
+    @State private var renameText = ""
+    @State private var showDeleteConfirm = false
+
+    init(
+        watchlist: PersonalWatchlist,
+        onUpdated: (() -> Void)? = nil,
+        onDeleted: (() -> Void)? = nil
+    ) {
+        self.watchlist = watchlist
+        self.onUpdated = onUpdated
+        self.onDeleted = onDeleted
+        _displayName = State(initialValue: watchlist.name)
+    }
 
     private let columns = [
         GridItem(.flexible(), spacing: 20),
@@ -58,7 +77,7 @@ struct PersonalWatchlistDetailView: View {
                 }
             }
         }
-        .navigationTitle(watchlist.name)
+        .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadMovies() }
         .refreshable { await loadMovies() }
@@ -71,6 +90,43 @@ struct PersonalWatchlistDetailView: View {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        renameText = displayName
+                        showRenameAlert = true
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Label("Delete Watchlist", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+        .alert("Rename Watchlist", isPresented: $showRenameAlert) {
+            TextField("Watchlist name", text: $renameText)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                Task { await renameWatchlist() }
+            }
+        }
+        .confirmationDialog(
+            "Delete this watchlist?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                Task { await deleteWatchlist() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This deletes \"\(displayName)\" and everything in it. This can't be undone.")
         }
         .sheet(isPresented: $showShareSheet) {
             shareSheet
@@ -88,7 +144,7 @@ struct PersonalWatchlistDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             if let movie = movieToRemove {
-                Text("Remove \"\(movie.title)\" from \(watchlist.name)?")
+                Text("Remove \"\(movie.title)\" from \(displayName)?")
             }
         }
     }
@@ -242,7 +298,7 @@ struct PersonalWatchlistDetailView: View {
                     }
                 }
             }
-            .navigationTitle("Share \"\(watchlist.name)\"")
+            .navigationTitle("Share \"\(displayName)\"")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -288,7 +344,7 @@ struct PersonalWatchlistDetailView: View {
         }
         isLoading = false
     }
-
+    
     private func removeMovie(_ movie: FeedItem) async {
         guard let token = authStore.accessToken,
               let movieId = movie.localId else { return }
@@ -301,6 +357,30 @@ struct PersonalWatchlistDetailView: View {
             movies.removeAll { $0.id == movie.id }
         } catch {
             print("REMOVE MOVIE ERROR:", error)
+        }
+    }
+
+    private func renameWatchlist() async {
+        guard let token = authStore.accessToken else { return }
+        let name = renameText.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        do {
+            try await service.renameWatchlist(token: token, watchlistId: watchlist.id, name: name)
+            displayName = name
+            onUpdated?()
+        } catch {
+            print("RENAME PERSONAL WATCHLIST ERROR:", error)
+        }
+    }
+
+    private func deleteWatchlist() async {
+        guard let token = authStore.accessToken else { return }
+        do {
+            try await service.deleteWatchlist(token: token, watchlistId: watchlist.id)
+            onDeleted?()
+            dismiss()
+        } catch {
+            print("DELETE PERSONAL WATCHLIST ERROR:", error)
         }
     }
 
