@@ -17,6 +17,9 @@ struct PersonalShareSwipeView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var showMatchAlert = false
     @State private var showMatchesScreen = false
+    @State private var isShowingBack = false
+    @State private var loadedDetails: [Int: MovieDetails] = [:]
+    @State private var isLoadingDetails = false
 
     var body: some View {
         ZStack {
@@ -117,7 +120,13 @@ struct PersonalShareSwipeView: View {
     @ViewBuilder
     private func swipeCard(for item: FeedItem, cardWidth: CGFloat, cardHeight: CGFloat, imageHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
-            frontCardView(for: item, cardWidth: cardWidth, imageHeight: imageHeight)
+            ZStack {
+                if isShowingBack {
+                    backCardView(for: item, cardWidth: cardWidth, cardHeight: cardHeight)
+                } else {
+                    frontCardView(for: item, cardWidth: cardWidth, imageHeight: imageHeight)
+                }
+            }
         }
         .frame(width: cardWidth, height: cardHeight)
         .background(Color.clear)
@@ -125,6 +134,17 @@ struct PersonalShareSwipeView: View {
         .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 6)
         .offset(x: dragOffset.width, y: dragOffset.height * 0.15)
         .rotationEffect(.degrees(Double(dragOffset.width / 20)))
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    isShowingBack.toggle()
+                }
+                // Fetch when flipping TO the back (isShowingBack just became true)
+                if isShowingBack, let item = currentItem {
+                    Task { await fetchDetails(for: item) }
+                }
+            }
+        )
         .gesture(
             DragGesture()
                 .onChanged { value in dragOffset = value.translation }
@@ -172,12 +192,117 @@ struct PersonalShareSwipeView: View {
                         tagView(year, color: Color("BrandGold"))
                     }
                 }
+
+                Text("Tap card for details")
+                    .font(.caption)
+                    .foregroundStyle(Color("BrandTeal"))
             }
             .frame(width: cardWidth, alignment: .leading)
             .padding(.top, 12)
             .padding(.horizontal, 4)
         }
         .background(Color.clear)
+    }
+
+    // MARK: - Back Card
+
+    private func backCardView(for item: FeedItem, cardWidth: CGFloat, cardHeight: CGFloat) -> some View {
+        let details = item.localId.flatMap { loadedDetails[$0] }
+
+        return RoundedRectangle(cornerRadius: 24)
+            .fill(Color("BrandTeal"))
+            .overlay {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(item.title)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .lineLimit(3)
+
+                        HStack(spacing: 8) {
+                            Text(item.isTV ? "TV Show" : "Movie")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.white.opacity(0.2))
+                                .clipShape(Capsule())
+
+                            if let release = item.release_date, !release.isEmpty {
+                                Text(String(release.prefix(4)))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.white.opacity(0.2))
+                                    .clipShape(Capsule())
+                            }
+
+                            if let runtime = details?.runtime, runtime > 0 {
+                                Text("\(runtime) min")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.white.opacity(0.2))
+                                    .clipShape(Capsule())
+                            }
+                        }
+
+                        if !item.genreNames.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(item.genreNames, id: \.self) { genre in
+                                        Text(genre)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Color("BrandTeal"))
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 5)
+                                            .background(Color.white.opacity(0.9))
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
+                        }
+
+                        Divider().overlay(.white.opacity(0.25))
+
+                        if isLoadingDetails {
+                            HStack {
+                                ProgressView().tint(.white)
+                                Text("Loading details...")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        } else if let overview = details?.overview, !overview.isEmpty {
+                            Text(overview)
+                                .font(.body)
+                                .foregroundStyle(.white.opacity(0.95))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Divider().overlay(.white.opacity(0.25))
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Your Move")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                            Text("Heart = you want to watch this too • X = pass. If \(ownerName) already picked it, a heart is an instant match.")
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.9))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer(minLength: 8)
+
+                        Text("Tap card to flip back")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .padding(24)
+                }
+            }
+            .frame(width: cardWidth, height: cardHeight)
     }
 
     // MARK: - Controls
@@ -253,6 +378,27 @@ struct PersonalShareSwipeView: View {
         URLSession.shared.dataTask(with: url).resume()
     }
 
+    // MARK: - Details
+
+    private func fetchDetails(for item: FeedItem) async {
+        guard let token = authStore.accessToken,
+              let localId = item.localId,
+              loadedDetails[localId] == nil else { return }
+
+        isLoadingDetails = true
+        do {
+            let details = try await HomeService().fetchDetails(
+                token: token,
+                tmdbId: item.tmdb_id,
+                isTV: item.isTV
+            )
+            loadedDetails[localId] = details
+        } catch {
+            print("SHARE SWIPE DETAILS ERROR:", error)
+        }
+        isLoadingDetails = false
+    }
+
     // MARK: - Data
 
     private func loadDeck() async {
@@ -264,6 +410,7 @@ struct PersonalShareSwipeView: View {
         errorMessage = ""
         isLoading = true
         currentIndex = 0
+        isShowingBack = false
 
         do {
             items = try await service.fetchShareDeck(token: token, shareId: shareId)
@@ -293,6 +440,7 @@ struct PersonalShareSwipeView: View {
 
         defer {
             dragOffset = .zero
+            isShowingBack = false
             moveForward()
         }
 

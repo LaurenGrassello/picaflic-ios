@@ -696,24 +696,24 @@ struct HomeView: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
-            }
 
-            // Shuffle
-            Button {
-                Task { await loadHome(reset: true) }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "shuffle")
-                    Text("Shuffle")
+                // Shuffle
+                Button {
+                    Task { await loadHome(reset: true) }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "shuffle")
+                        Text("Shuffle")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color("BrandSand"))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(Capsule())
                 }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color("BrandSand"))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.white.opacity(0.06))
-                .clipShape(Capsule())
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             .padding(.horizontal, 20)
         }
     }

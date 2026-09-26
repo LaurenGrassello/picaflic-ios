@@ -34,9 +34,9 @@ struct SwipeView: View {
                 let cardWidth = min(geo.size.width * 0.8, 320)
                 let infoHeight: CGFloat = 130
                 // Reserve space for header (~170) and controls (~58 button + 24 padding)
-                let reservedHeight: CGFloat = 140 + 58 + 24 + 10
+                let reservedHeight: CGFloat = 170 + 58 + 24 + 24
                 let maxCardHeight = max(geo.size.height - reservedHeight, 260)
-                let cardHeight = min(cardWidth * 1.5 + infoHeight + 150, maxCardHeight)
+                let cardHeight = min(cardWidth * 1.5 + infoHeight + 10, maxCardHeight)
                 let imageHeight = cardHeight - infoHeight
 
                 VStack(spacing: 16) {
@@ -71,8 +71,8 @@ struct SwipeView: View {
                     }
 
                     controlsView
-                        .padding(.top, 4)
-                        .padding(.bottom, 60)
+                        .padding(.top, 12)
+                        .padding(.bottom, 30)
                 }
                 .padding()
                 .frame(width: geo.size.width, height: geo.size.height)
@@ -545,8 +545,7 @@ struct SwipeView: View {
 
     private func handleLike() async {
         guard let token = authStore.accessToken,
-              let item = currentItem,
-              let localId = item.localId else { return }
+              let item = currentItem else { return }
 
         dragOffset = .zero
         isShowingBack = false
@@ -554,7 +553,7 @@ struct SwipeView: View {
         do {
             _ = try await preferenceService.setPreference(
                 token: token,
-                movieId: localId,
+                movie: item,
                 status: "liked"
             )
             likedCurrentItem = true
@@ -570,8 +569,7 @@ struct SwipeView: View {
 
     private func handleDislike() async {
         guard let token = authStore.accessToken,
-              let item = currentItem,
-              let localId = item.localId else { return }
+              let item = currentItem else { return }
 
         defer {
             dragOffset = .zero
@@ -582,7 +580,7 @@ struct SwipeView: View {
         do {
             _ = try await preferenceService.setPreference(
                 token: token,
-                movieId: localId,
+                movie: item,
                 status: "disliked"
             )
         } catch {

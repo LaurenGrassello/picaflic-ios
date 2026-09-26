@@ -22,6 +22,7 @@ struct PersonalWatchlistDetailView: View {
     @State private var isLoadingFriends = false
     @State private var sharingToUserId: Int? = nil
     @State private var shareFeedback = ""
+    @State private var sentShares: [PersonalWatchlistSentShare] = []
 
     private enum ActiveSheet: Identifiable {
         case actions, rename, delete
@@ -64,13 +65,21 @@ struct PersonalWatchlistDetailView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
                     Spacer()
-                } else if movies.isEmpty {
-                    emptyStateView
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 24) {
-                            ForEach(movies) { movie in
-                                movieCard(movie)
+                        VStack(spacing: 20) {
+                            if !sentShares.isEmpty {
+                                sharedWithSection
+                            }
+
+                            if movies.isEmpty {
+                                emptyStateView
+                            } else {
+                                LazyVGrid(columns: columns, spacing: 24) {
+                                    ForEach(movies) { movie in
+                                        movieCard(movie)
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -82,8 +91,14 @@ struct PersonalWatchlistDetailView: View {
         }
         .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await loadMovies() }
-        .refreshable { await loadMovies() }
+        .task {
+            await loadMovies()
+            await loadSentShares()
+        }
+        .refreshable {
+            await loadMovies()
+            await loadSentShares()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -253,6 +268,97 @@ struct PersonalWatchlistDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
+    // MARK: - Shared With Section
+
+    private var sharedWithSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Shared With")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color("BrandTeal"))
+            .clipShape(RoundedRectangle(cornerRadius: 14).corners([.topLeft, .topRight]))
+
+            VStack(spacing: 0) {
+                ForEach(sentShares) { share in
+                    sharedWithRow(share)
+
+                    if share.id != sentShares.last?.id {
+                        Divider()
+                            .background(Color.white.opacity(0.08))
+                            .padding(.horizontal, 16)
+                    }
+                }
+            }
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 14).corners([.bottomLeft, .bottomRight]))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private func sharedWithRow(_ share: PersonalWatchlistSentShare) -> some View {
+        if share.status == "accepted" {
+            NavigationLink {
+                PersonalShareMatchesView(shareId: share.share_id, watchlistName: displayName)
+                    .environmentObject(authStore)
+            } label: {
+                sharedWithRowContent(share)
+            }
+            .buttonStyle(.plain)
+        } else {
+            sharedWithRowContent(share)
+        }
+    }
+
+    private func sharedWithRowContent(_ share: PersonalWatchlistSentShare) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(share.shared_with_display_name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color("BrandGold"))
+                Text(share.status == "pending" ? "Invite pending" : "Accepted")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+
+            Spacer()
+
+            if share.status == "accepted" {
+                if share.match_count > 0 {
+                    Text("\(share.match_count) match\(share.match_count == 1 ? "" : "es")")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color("BrandGold"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color("BrandGold").opacity(0.15))
+                        .clipShape(Capsule())
+                }
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.3))
+            } else {
+                Text("Pending")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+
     // MARK: - Empty State
 
     private var emptyStateView: some View {
@@ -405,6 +511,15 @@ struct PersonalWatchlistDetailView: View {
         }
     }
 
+    private func loadSentShares() async {
+        guard let token = authStore.accessToken else { return }
+        do {
+            sentShares = try await service.fetchSentShares(token: token, watchlistId: watchlist.id)
+        } catch {
+            print("LOAD SENT SHARES ERROR:", error)
+        }
+    }
+
     private func loadShareFriends() async {
         guard let token = authStore.accessToken else { return }
         isLoadingFriends = true
@@ -423,6 +538,7 @@ struct PersonalWatchlistDetailView: View {
         do {
             _ = try await service.shareWatchlist(token: token, watchlistId: watchlist.id, friendUserId: friend.id)
             shareFeedback = "Sent to \(friend.display_name)!"
+            await loadSentShares()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                 showShareSheet = false
                 shareFeedback = ""

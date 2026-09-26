@@ -28,6 +28,17 @@ struct ShareSwipeResponse: Decodable {
     let status: String
 }
 
+/// One recipient this watchlist has been shared with, from the owner's side.
+struct PersonalWatchlistSentShare: Decodable, Identifiable {
+    let share_id: Int
+    let shared_with_user_id: Int
+    let shared_with_display_name: String
+    let status: String
+    let match_count: Int
+
+    var id: Int { share_id }
+}
+
 final class PersonalWatchlistService {
     private let api = APIClient.shared
 
@@ -142,6 +153,18 @@ final class PersonalWatchlistService {
             body: Body(friend_user_id: friendUserId)
         )
         return response.share_id
+    }
+
+    /// Owner-only: everyone this watchlist has been shared with, plus their status
+    /// and match count — powers the "Shared With" section on the owner's own
+    /// watchlist detail screen.
+    func fetchSentShares(token: String, watchlistId: Int) async throws -> [PersonalWatchlistSentShare] {
+        struct Response: Decodable { let results: [PersonalWatchlistSentShare] }
+        let response: Response = try await api.request(
+            path: "/personal-watchlists/\(watchlistId)/shares",
+            token: token
+        )
+        return response.results
     }
 
     func fetchReceivedShares(token: String) async throws -> [PersonalWatchlistShare] {

@@ -176,14 +176,15 @@ struct LikedMoviesView: View {
     private func unlike(_ movie: LikedMovie) async {
         guard let token = authStore.accessToken else { return }
         do {
-            _ = try await preferenceService.setPreference(token: token, movieId: movie.id, status: "none")
+            _ = try await preferenceService.setPreference(token: token, movie: asFeedItem(movie), status: "none")
             movies.removeAll { $0.id == movie.id }
         } catch {
             print("UNLIKE ERROR:", error)
         }
     }
 
-    /// Builds a minimal FeedItem from a LikedMovie so we can reuse MovieDetailSheet.
+    /// Builds a minimal FeedItem from a LikedMovie so we can reuse MovieDetailSheet
+    /// (and now PreferenceService.setPreference, which takes a FeedItem).
     private func asFeedItem(_ movie: LikedMovie) -> FeedItem {
         FeedItem(
             id: movie.id,
