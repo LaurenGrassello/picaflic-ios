@@ -23,9 +23,12 @@ struct PersonalWatchlistDetailView: View {
     @State private var sharingToUserId: Int? = nil
     @State private var shareFeedback = ""
 
-    @State private var showRenameAlert = false
-    @State private var renameText = ""
-    @State private var showDeleteConfirm = false
+    private enum ActiveSheet: Identifiable {
+        case actions, rename, delete
+        var id: Self { self }
+    }
+
+    @State private var activeSheet: ActiveSheet? = nil
 
     init(
         watchlist: PersonalWatchlist,
@@ -84,49 +87,67 @@ struct PersonalWatchlistDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    showShareSheet = true
-                    Task { await loadShareFriends() }
+                    activeSheet = .actions
                 } label: {
-                    Image(systemName: "square.and.arrow.up")
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        renameText = displayName
-                        showRenameAlert = true
-                    } label: {
-                        Label("Rename", systemImage: "pencil")
-                    }
-
-                    Button(role: .destructive) {
-                        showDeleteConfirm = true
-                    } label: {
-                        Label("Delete Watchlist", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color("BrandSand"))
+                        .frame(width: 34, height: 34)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(Circle())
                 }
             }
         }
-        .alert("Rename Watchlist", isPresented: $showRenameAlert) {
-            TextField("Watchlist name", text: $renameText)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") {
-                Task { await renameWatchlist() }
+        .sheet(item: $activeSheet) { kind in
+            switch kind {
+            case .actions:
+                BrandActionSheet(
+                    title: displayName,
+                    options: [
+                        BrandActionSheetOption(title: "Share", systemImage: "square.and.arrow.up") {
+                            activeSheet = nil
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                showShareSheet = true
+                                Task { await loadShareFriends() }
+                            }
+                        },
+                        BrandActionSheetOption(title: "Rename", systemImage: "pencil") {
+                            activeSheet = nil
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                activeSheet = .rename
+                            }
+                        },
+                        BrandActionSheetOption(title: "Delete Watchlist", systemImage: "trash", isDestructive: true) {
+                            activeSheet = nil
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                activeSheet = .delete
+                            }
+                        },
+                    ],
+                    onCancel: { activeSheet = nil }
+                )
+            case .rename:
+                BrandRenameSheet(
+                    title: "Rename Watchlist",
+                    name: displayName,
+                    onCancel: { activeSheet = nil },
+                    onSave: { newName in
+                        activeSheet = nil
+                        Task { await renameWatchlist(to: newName) }
+                    }
+                )
+            case .delete:
+                BrandConfirmDialog(
+                    title: "Delete Watchlist?",
+                    message: "This deletes \"\(displayName)\" and everything in it. This can't be undone.",
+                    confirmTitle: "Delete",
+                    onCancel: { activeSheet = nil },
+                    onConfirm: {
+                        activeSheet = nil
+                        Task { await deleteWatchlist() }
+                    }
+                )
             }
-        }
-        .confirmationDialog(
-            "Delete this watchlist?",
-            isPresented: $showDeleteConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                Task { await deleteWatchlist() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This deletes \"\(displayName)\" and everything in it. This can't be undone.")
         }
         .sheet(isPresented: $showShareSheet) {
             shareSheet
@@ -344,7 +365,7 @@ struct PersonalWatchlistDetailView: View {
         }
         isLoading = false
     }
-    
+
     private func removeMovie(_ movie: FeedItem) async {
         guard let token = authStore.accessToken,
               let movieId = movie.localId else { return }
@@ -360,9 +381,9 @@ struct PersonalWatchlistDetailView: View {
         }
     }
 
-    private func renameWatchlist() async {
+    private func renameWatchlist(to newName: String) async {
         guard let token = authStore.accessToken else { return }
-        let name = renameText.trimmingCharacters(in: .whitespaces)
+        let name = newName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         do {
             try await service.renameWatchlist(token: token, watchlistId: watchlist.id, name: name)

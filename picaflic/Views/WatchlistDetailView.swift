@@ -12,10 +12,14 @@ struct WatchlistDetailView: View {
     private let watchlistService = WatchlistService()
 
     @State private var displayName: String
-    @State private var showRenameAlert = false
-    @State private var renameText = ""
-    @State private var showDeleteConfirm = false
     @State private var errorMessage = ""
+
+    private enum ActiveSheet: Identifiable {
+        case actions, rename, delete
+        var id: Self { self }
+    }
+
+    @State private var activeSheet: ActiveSheet? = nil
 
     init(
         watchlistId: Int,
@@ -105,50 +109,70 @@ struct WatchlistDetailView: View {
         .toolbar {
             if isOwner {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            renameText = displayName
-                            showRenameAlert = true
-                        } label: {
-                            Label("Rename", systemImage: "pencil")
-                        }
-
-                        Button(role: .destructive) {
-                            showDeleteConfirm = true
-                        } label: {
-                            Label("Delete Watchlist", systemImage: "trash")
-                        }
+                    Button {
+                        activeSheet = .actions
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "ellipsis")
+                            .font(.subheadline.weight(.bold))
                             .foregroundStyle(Color("BrandSand"))
+                            .frame(width: 34, height: 34)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(Circle())
                     }
                 }
             }
         }
-        .alert("Rename Watchlist", isPresented: $showRenameAlert) {
-            TextField("Watchlist name", text: $renameText)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") {
-                Task { await rename() }
+        .sheet(item: $activeSheet) { kind in
+            switch kind {
+            case .actions:
+                BrandActionSheet(
+                    title: displayName,
+                    options: [
+                        BrandActionSheetOption(title: "Rename", systemImage: "pencil") {
+                            activeSheet = nil
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                activeSheet = .rename
+                            }
+                        },
+                        BrandActionSheetOption(title: "Delete Watchlist", systemImage: "trash", isDestructive: true) {
+                            activeSheet = nil
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                activeSheet = .delete
+                            }
+                        },
+                    ],
+                    onCancel: { activeSheet = nil }
+                )
+            case .rename:
+                BrandRenameSheet(
+                    title: "Rename Watchlist",
+                    name: displayName,
+                    onCancel: { activeSheet = nil },
+                    onSave: { newName in
+                        activeSheet = nil
+                        Task { await rename(to: newName) }
+                    }
+                )
+            case .delete:
+                BrandConfirmDialog(
+                    title: "Delete Watchlist?",
+                    message: "This removes \"\(displayName)\" for everyone in it. This can't be undone.",
+                    confirmTitle: "Delete",
+                    onCancel: { activeSheet = nil },
+                    onConfirm: {
+                        activeSheet = nil
+                        Task { await delete() }
+                    }
+                )
             }
-        }
-        .confirmationDialog(
-            "Delete this watchlist?",
-            isPresented: $showDeleteConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                Task { await delete() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This removes \"\(displayName)\" for everyone in it. This can't be undone.")
         }
     }
 
-    private func rename() async {
+    // MARK: - Data
+
+    private func rename(to newName: String) async {
         guard let token = authStore.accessToken else { return }
-        let name = renameText.trimmingCharacters(in: .whitespaces)
+        let name = newName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         do {
             try await watchlistService.renameWatchlist(token: token, watchlistId: watchlistId, name: name)

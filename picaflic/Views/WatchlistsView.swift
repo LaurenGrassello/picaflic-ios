@@ -149,7 +149,7 @@ struct WatchlistsView: View {
                                     RoundedRectangle(cornerRadius: 14)
                                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                                 )
-                                
+
                                 // MARK: - Shared With You Block
                                 if !receivedShares.isEmpty {
                                     VStack(spacing: 0) {
@@ -380,6 +380,26 @@ struct WatchlistsView: View {
             .sheet(isPresented: $showCreatePersonalSheet) {
                 createPersonalWatchlistSheet
             }
+            .sheet(isPresented: $showCreateMenu) {
+                BrandActionSheet(
+                    title: "New Watchlist",
+                    options: [
+                        BrandActionSheetOption(title: "Personal Watchlist", systemImage: "person.fill") {
+                            showCreateMenu = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                showCreatePersonalSheet = true
+                            }
+                        },
+                        BrandActionSheetOption(title: "Friends Watchlist", systemImage: "person.2.fill") {
+                            showCreateMenu = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                showCreateGroupSheet = true
+                            }
+                        },
+                    ],
+                    onCancel: { showCreateMenu = false }
+                )
+            }
             .alert(
                 membersPopover?.name ?? "",
                 isPresented: Binding(
@@ -415,18 +435,8 @@ struct WatchlistsView: View {
                 Spacer()
 
                 // + menu
-                Menu {
-                    Button {
-                        showCreatePersonalSheet = true
-                    } label: {
-                        Label("New Personal Watchlist", systemImage: "person.fill")
-                    }
-
-                    Button {
-                        showCreateGroupSheet = true
-                    } label: {
-                        Label("New Friends Watchlist", systemImage: "person.2.fill")
-                    }
+                Button {
+                    showCreateMenu = true
                 } label: {
                     Image(systemName: "plus")
                         .font(.headline.weight(.bold))
@@ -437,7 +447,7 @@ struct WatchlistsView: View {
                 }
             }
             .padding(.horizontal, 20)
-            
+
             Text("Select a watchlist to find a movie!")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.7))

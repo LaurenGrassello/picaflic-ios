@@ -200,32 +200,32 @@ struct AddToWatchlistSheet: View {
     }
 
     private func addToExisting(_ wl: PersonalWatchlist) async {
-        guard let movieId = movie.localId else { return }
         errorMessage = nil
         do {
-            try await service.addMovie(token: token, watchlistId: wl.id, movieId: movieId)
+            try await service.addMovie(token: token, watchlistId: wl.id, movie: movie)
             successMessage = "Added to \"\(wl.name)\""
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             onDismiss()
         } catch {
             errorMessage = "Couldn't add to watchlist."
+            print("ADD MOVIE ERROR:", error)
         }
     }
 
     private func createAndAdd() async {
-        guard let movieId = movie.localId else { return }
         let name = newWatchlistName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         isCreating = true
         errorMessage = nil
         do {
             let wl = try await service.createWatchlist(token: token, name: name)
-            try await service.addMovie(token: token, watchlistId: wl.id, movieId: movieId)
+            try await service.addMovie(token: token, watchlistId: wl.id, movie: movie)
             successMessage = "Added to \"\(wl.name)\""
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             onDismiss()
         } catch {
             errorMessage = "Couldn't create watchlist."
+            print("CREATE & ADD ERROR:", error)
         }
         isCreating = false
     }

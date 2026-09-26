@@ -10,8 +10,7 @@ struct InboxView: View {
     private let personalWatchlistService = PersonalWatchlistService()
 
     @State private var pendingFriendRequests: [FriendUser] = []
-    @State private var watchlistInvites: [WatchlistInviteItem] = []
-    @State private var watchlistShares: [PersonalWatchlistShare] = []
+    @State private var watchlistRequests: [WatchlistRequestItem] = []
     @State private var isLoading = false
     @State private var errorMessage = ""
     @State private var messages: [Message] = []
@@ -37,13 +36,10 @@ struct InboxView: View {
                         .padding(.horizontal, 24)
                     Spacer()
                 } else {
-                    GeometryReader { geo in
+                    ScrollView {
                         VStack(spacing: 16) {
 
-                            inboxBlock(
-                                title: "Messages",
-                                height: max(100, (geo.size.height - 96) / 4)
-                            ) {
+                            inboxBlock(title: "Messages") {
                                 if messages.isEmpty {
                                     emptyBlockMessage("No messages yet.")
                                 } else {
@@ -58,10 +54,7 @@ struct InboxView: View {
                                 }
                             }
 
-                            inboxBlock(
-                                title: "Friend Requests",
-                                height: max(100, (geo.size.height - 96) / 4)
-                            ) {
+                            inboxBlock(title: "Friend Requests") {
                                 if pendingFriendRequests.isEmpty {
                                     emptyBlockMessage("No friend requests right now.")
                                 } else {
@@ -76,34 +69,13 @@ struct InboxView: View {
                                 }
                             }
 
-                            inboxBlock(
-                                title: "Watchlist Requests",
-                                height: max(100, (geo.size.height - 96) / 4)
-                            ) {
-                                if watchlistInvites.isEmpty {
+                            inboxBlock(title: "Watchlist Requests") {
+                                if watchlistRequests.isEmpty {
                                     emptyBlockMessage("No watchlist invites right now.")
                                 } else {
-                                    ForEach(watchlistInvites) { invite in
-                                        watchlistInviteRow(invite)
-                                        if invite.id != watchlistInvites.last?.id {
-                                            Divider()
-                                                .background(Color.white.opacity(0.08))
-                                                .padding(.horizontal, 16)
-                                        }
-                                    }
-                                }
-                            }
-
-                            inboxBlock(
-                                title: "Watchlist Shares",
-                                height: max(100, (geo.size.height - 96) / 4)
-                            ) {
-                                if watchlistShares.isEmpty {
-                                    emptyBlockMessage("No watchlist shares right now.")
-                                } else {
-                                    ForEach(watchlistShares) { share in
-                                        watchlistShareRow(share)
-                                        if share.id != watchlistShares.last?.id {
+                                    ForEach(watchlistRequests) { request in
+                                        watchlistRequestRow(request)
+                                        if request.id != watchlistRequests.last?.id {
                                             Divider()
                                                 .background(Color.white.opacity(0.08))
                                                 .padding(.horizontal, 16)
@@ -114,15 +86,15 @@ struct InboxView: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 110)
                     }
+                    .refreshable { await loadInbox() }
                 }
             }
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadInbox() }
-        .refreshable { await loadInbox() }
     }
 
     // MARK: - Header
@@ -167,7 +139,6 @@ struct InboxView: View {
 
     private func inboxBlock<Content: View>(
         title: String,
-        height: CGFloat,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(spacing: 0) {
@@ -181,14 +152,11 @@ struct InboxView: View {
             .padding(.vertical, 12)
             .background(Color("BrandTeal"))
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    content()
-                }
+            VStack(spacing: 0) {
+                content()
             }
             .background(Color.white.opacity(0.05))
         }
-        .frame(height: height)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
@@ -296,7 +264,7 @@ struct InboxView: View {
         .padding(.vertical, 14)
     }
 
-    private func watchlistInviteRow(_ invite: WatchlistInviteItem) -> some View {
+    private func watchlistRequestRow(_ request: WatchlistRequestItem) -> some View {
         HStack(spacing: 12) {
             Image("PlayButton")
                 .resizable()
@@ -304,10 +272,10 @@ struct InboxView: View {
                 .frame(width: 22, height: 22)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(invite.watchlist_name)
+                Text(request.watchlistName)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color("BrandGold"))
-                Text("From: \(invite.invited_by_name)")
+                Text("From: \(request.fromName)")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.5))
             }
@@ -315,7 +283,7 @@ struct InboxView: View {
             Spacer()
 
             Button {
-                Task { await acceptInvite(invite) }
+                Task { await accept(request) }
             } label: {
                 Text("Accept")
                     .font(.caption.weight(.semibold))
@@ -328,55 +296,7 @@ struct InboxView: View {
             .buttonStyle(.plain)
 
             Button {
-                Task { await declineInvite(invite) }
-            } label: {
-                Text("Decline")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color("BrandRust"))
-                    .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-    }
-
-    private func watchlistShareRow(_ share: PersonalWatchlistShare) -> some View {
-        HStack(spacing: 12) {
-            Image("PlayButton")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 22, height: 22)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(share.watchlist_name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color("BrandGold"))
-                Text("From: \(share.owner_display_name)")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-
-            Spacer()
-
-            Button {
-                Task { await acceptShare(share) }
-            } label: {
-                Text("Accept")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color("BrandTeal"))
-                    .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                Task { await declineShare(share) }
+                Task { await decline(request) }
             } label: {
                 Text("Decline")
                     .font(.caption.weight(.semibold))
@@ -414,20 +334,28 @@ struct InboxView: View {
         do {
             async let friendsResponse = friendsService.fetchFriends(token: token)
             async let invitesResponse = inboxService.fetchWatchlistInvites(token: token)
-            async let messagesResponse = messageService.fetchMessages(token: token)
             async let sharesResponse = personalWatchlistService.fetchReceivedShares(token: token)
+            async let messagesResponse = messageService.fetchMessages(token: token)
 
             let friends = try await friendsResponse
             let invites = try await invitesResponse
-            let msgs = try await messagesResponse
             let shares = try await sharesResponse
+            let msgs = try await messagesResponse
 
             messages = msgs
             pendingFriendRequests = friends.pending_received
-            watchlistInvites = invites
-            watchlistShares = shares.filter { $0.status == "pending" }
+
+            let inviteItems = invites.map { WatchlistRequestItem.groupInvite($0) }
+            let shareItems = shares
+                .filter { $0.status == "pending" }
+                .map { WatchlistRequestItem.personalShare($0) }
+            watchlistRequests = inviteItems + shareItems
 
             await inboxStore.refresh(token: token)
+        } catch is CancellationError {
+            // A previous load was superseded (e.g. quick tab switching) — not a real failure.
+        } catch let error as URLError where error.code == .cancelled {
+            // Same as above, surfaced via URLSession instead of Swift concurrency.
         } catch {
             errorMessage = error.localizedDescription
             print("LOAD INBOX ERROR:", error)
@@ -456,43 +384,65 @@ struct InboxView: View {
         }
     }
 
-    private func acceptInvite(_ invite: WatchlistInviteItem) async {
+    private func accept(_ request: WatchlistRequestItem) async {
         guard let token = authStore.accessToken else { return }
         do {
-            try await inboxService.acceptWatchlistInvite(token: token, inviteId: invite.id)
+            switch request {
+            case .groupInvite(let invite):
+                try await inboxService.acceptWatchlistInvite(token: token, inviteId: invite.id)
+            case .personalShare(let share):
+                try await personalWatchlistService.acceptShare(token: token, shareId: share.share_id)
+            }
             await loadInbox()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func declineInvite(_ invite: WatchlistInviteItem) async {
+    private func decline(_ request: WatchlistRequestItem) async {
         guard let token = authStore.accessToken else { return }
         do {
-            try await inboxService.declineWatchlistInvite(token: token, inviteId: invite.id)
+            switch request {
+            case .groupInvite(let invite):
+                try await inboxService.declineWatchlistInvite(token: token, inviteId: invite.id)
+            case .personalShare(let share):
+                try await personalWatchlistService.declineShare(token: token, shareId: share.share_id)
+            }
             await loadInbox()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
+}
 
-    private func acceptShare(_ share: PersonalWatchlistShare) async {
-        guard let token = authStore.accessToken else { return }
-        do {
-            try await personalWatchlistService.acceptShare(token: token, shareId: share.share_id)
-            await loadInbox()
-        } catch {
-            errorMessage = error.localizedDescription
+// MARK: - Unified watchlist request row model
+
+/// Wraps the two distinct "watchlist request" types — group watchlist invites
+/// (`WatchlistInviteItem`, from the friends-group Watchlist system) and personal
+/// watchlist shares (`PersonalWatchlistShare`, from the personal-watchlist sharing
+/// system) — into one type so the Inbox can list and act on both in a single block.
+enum WatchlistRequestItem: Identifiable {
+    case groupInvite(WatchlistInviteItem)
+    case personalShare(PersonalWatchlistShare)
+
+    var id: String {
+        switch self {
+        case .groupInvite(let item): return "invite-\(item.id)"
+        case .personalShare(let item): return "share-\(item.share_id)"
         }
     }
 
-    private func declineShare(_ share: PersonalWatchlistShare) async {
-        guard let token = authStore.accessToken else { return }
-        do {
-            try await personalWatchlistService.declineShare(token: token, shareId: share.share_id)
-            await loadInbox()
-        } catch {
-            errorMessage = error.localizedDescription
+    var watchlistName: String {
+        switch self {
+        case .groupInvite(let item): return item.watchlist_name
+        case .personalShare(let item): return item.watchlist_name
+        }
+    }
+
+    var fromName: String {
+        switch self {
+        case .groupInvite(let item): return item.invited_by_name
+        case .personalShare(let item): return item.owner_display_name
         }
     }
 }

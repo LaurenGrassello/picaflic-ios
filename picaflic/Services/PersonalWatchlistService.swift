@@ -50,7 +50,7 @@ final class PersonalWatchlistService {
         )
         return response.watchlist
     }
-    
+
     func renameWatchlist(token: String, watchlistId: Int, name: String) async throws {
         struct Body: Encodable { let name: String }
         struct RenameResponse: Decodable { let ok: Bool }
@@ -62,14 +62,53 @@ final class PersonalWatchlistService {
         )
     }
 
-    func addMovie(token: String, watchlistId: Int, movieId: Int) async throws {
-        struct Body: Encodable { let movie_id: Int }
+    /// Adds a movie to a personal watchlist.
+    ///
+    /// If `movie.localId` is already known (it came from somewhere already synced
+    /// into our `movies` table, like the home feed), we send `movie_id` directly —
+    /// same as before. If it's `nil` (e.g. a raw search result that has never been
+    /// saved locally), we send the TMDB fields instead, and the backend will find
+    /// or create the local `movies` row for us before adding it to the watchlist.
+    func addMovie(token: String, watchlistId: Int, movie: FeedItem) async throws {
+        struct Body: Encodable {
+            let movie_id: Int?
+            let tmdb_id: Int?
+            let title: String?
+            let poster_path: String?
+            let genre_ids: String?
+            let release_date: String?
+            let popularity: Double?
+        }
         struct OkResponse: Decodable { let ok: Bool }
+
+        let body: Body
+        if let localId = movie.localId {
+            body = Body(
+                movie_id: localId,
+                tmdb_id: nil,
+                title: nil,
+                poster_path: nil,
+                genre_ids: nil,
+                release_date: nil,
+                popularity: nil
+            )
+        } else {
+            body = Body(
+                movie_id: nil,
+                tmdb_id: movie.tmdb_id,
+                title: movie.title,
+                poster_path: movie.poster_path,
+                genre_ids: movie.genre_ids,
+                release_date: movie.release_date,
+                popularity: movie.popularity
+            )
+        }
+
         let _: OkResponse = try await api.request(
             path: "/personal-watchlists/\(watchlistId)/movies",
             method: "POST",
             token: token,
-            body: Body(movie_id: movieId)
+            body: body
         )
     }
 

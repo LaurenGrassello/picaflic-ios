@@ -50,7 +50,7 @@ struct CreateWatchlistSheetView: View {
 
                         if friends.isEmpty {
                             Text("You need at least one accepted friend before creating a shared watchlist.")
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("BrandSand").opacity(0.6))
                         } else {
                             VStack(spacing: 10) {
                                 ForEach(friends) { friend in
@@ -82,7 +82,7 @@ struct CreateWatchlistSheetView: View {
                                     .foregroundStyle(.white)
                                     .frame(maxWidth: .infinity)
                                     .padding()
-                                    .background(canSubmit ? Color("BrandGold") : Color.gray.opacity(0.4))
+                                    .background(canSubmit ? Color("BrandGold") : Color("BrandGold").opacity(0.3))
                                     .clipShape(RoundedRectangle(cornerRadius: 14))
                             }
                         }
@@ -121,7 +121,7 @@ struct CreateWatchlistSheetView: View {
 
                     Text(friend.email)
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("BrandSand").opacity(0.6))
                 }
 
                 Spacer()
