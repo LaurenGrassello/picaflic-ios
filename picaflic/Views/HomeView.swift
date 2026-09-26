@@ -575,10 +575,9 @@ struct HomeView: View {
 
     private func swipeHandleLike() async {
         guard let token = authStore.accessToken,
-              let item = swipeCurrentItem,
-              let localId = item.localId else { return }
+              let item = swipeCurrentItem else { return }
         do {
-            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: "liked")
+            _ = try await preferenceService.setPreference(token: token, movie: item, status: "liked")
             swipeShowFeedback("❤️ Added to Likes")
         } catch {
             print("SWIPE LIKE ERROR:", error)
@@ -597,15 +596,14 @@ struct HomeView: View {
 
     private func swipeHandleDislike() async {
         guard let token = authStore.accessToken,
-              let item = swipeCurrentItem,
-              let localId = item.localId else { return }
+              let item = swipeCurrentItem else { return }
         defer {
             swipeDragOffset = .zero
             swipeIsShowingBack = false
             swipeMoveForward()
         }
         do {
-            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: "disliked")
+            _ = try await preferenceService.setPreference(token: token, movie: item, status: "disliked")
             swipeShowFeedback("✕ Removed from deck")
         } catch {
             print("SWIPE DISLIKE ERROR:", error)
@@ -698,24 +696,24 @@ struct HomeView: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
-
-                // Shuffle
-                Button {
-                    Task { await loadHome(reset: true) }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "shuffle")
-                        Text("Shuffle")
-                    }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color("BrandSand"))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
             }
+
+            // Shuffle
+            Button {
+                Task { await loadHome(reset: true) }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "shuffle")
+                    Text("Shuffle")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color("BrandSand"))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
             .padding(.horizontal, 20)
         }
     }
@@ -1117,17 +1115,17 @@ struct HomeView: View {
     }
 
     private func likeMovie(_ movie: FeedItem) async {
-        guard let token = authStore.accessToken,
-              let localId = movie.localId else { return }
-        let alreadyLiked = likedIds.contains(localId)
+        guard let token = authStore.accessToken else { return }
+        let alreadyLiked = movie.localId.map { likedIds.contains($0) } ?? false
         let newStatus = alreadyLiked ? "none" : "liked"
         do {
-            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: newStatus)
+            let response = try await preferenceService.setPreference(token: token, movie: movie, status: newStatus)
+            let id = response.movie_id
             if alreadyLiked {
-                likedIds.remove(localId)
+                likedIds.remove(id)
             } else {
-                likedIds.insert(localId)
-                dislikedIds.remove(localId)
+                likedIds.insert(id)
+                dislikedIds.remove(id)
             }
         } catch {
             print("LIKE MOVIE ERROR:", error)
@@ -1135,17 +1133,17 @@ struct HomeView: View {
     }
 
     private func dislikeMovie(_ movie: FeedItem) async {
-        guard let token = authStore.accessToken,
-              let localId = movie.localId else { return }
-        let alreadyDisliked = dislikedIds.contains(localId)
+        guard let token = authStore.accessToken else { return }
+        let alreadyDisliked = movie.localId.map { dislikedIds.contains($0) } ?? false
         let newStatus = alreadyDisliked ? "none" : "disliked"
         do {
-            _ = try await preferenceService.setPreference(token: token, movieId: localId, status: newStatus)
+            let response = try await preferenceService.setPreference(token: token, movie: movie, status: newStatus)
+            let id = response.movie_id
             if alreadyDisliked {
-                dislikedIds.remove(localId)
+                dislikedIds.remove(id)
             } else {
-                dislikedIds.insert(localId)
-                likedIds.remove(localId)
+                dislikedIds.insert(id)
+                likedIds.remove(id)
             }
         } catch {
             print("DISLIKE MOVIE ERROR:", error)
