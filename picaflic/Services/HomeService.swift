@@ -3,9 +3,13 @@ import Foundation
 final class HomeService {
     private let api = APIClient.shared
 
-    func fetchHomeFeed(token: String, limit: Int = 20, offset: Int = 0) async throws -> HomeFeedResponse {
+    func fetchHomeFeed(token: String, limit: Int = 20, offset: Int = 0, seed: Int? = nil) async throws -> HomeFeedResponse {
+        var path = "/feed/for-you?limit=\(limit)&offset=\(offset)"
+        if let seed {
+            path += "&seed=\(seed)"
+        }
         let response: HomeFeedResponse = try await api.request(
-            path: "/feed/for-you?limit=\(limit)&offset=\(offset)",
+            path: path,
             token: token
         )
         return response
@@ -20,7 +24,7 @@ final class HomeService {
         )
         return response
     }
-    
+
     func fetchDetails(token: String, tmdbId: Int, isTV: Bool) async throws -> MovieDetails {
         let kind = isTV ? "tv" : "movie"
         return try await api.request(

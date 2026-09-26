@@ -4,6 +4,7 @@ struct PersonalWatchlistDetailView: View {
     let watchlist: PersonalWatchlist
 
     private let service = PersonalWatchlistService()
+    private let friendsService = FriendsService()
 
     @EnvironmentObject var authStore: AuthStore
     @State private var movies: [FeedItem] = []
@@ -12,9 +13,15 @@ struct PersonalWatchlistDetailView: View {
     @State private var movieToRemove: FeedItem? = nil
     @State private var showRemoveConfirm = false
 
+    @State private var showShareSheet = false
+    @State private var shareFriends: [FriendUser] = []
+    @State private var isLoadingFriends = false
+    @State private var sharingToUserId: Int? = nil
+    @State private var shareFeedback = ""
+
     private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16)
+        GridItem(.flexible(), spacing: 20),
+        GridItem(.flexible(), spacing: 20)
     ]
 
     var body: some View {
@@ -39,7 +46,7 @@ struct PersonalWatchlistDetailView: View {
                     emptyStateView
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 18) {
+                        LazyVGrid(columns: columns, spacing: 24) {
                             ForEach(movies) { movie in
                                 movieCard(movie)
                             }
@@ -55,6 +62,19 @@ struct PersonalWatchlistDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadMovies() }
         .refreshable { await loadMovies() }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showShareSheet = true
+                    Task { await loadShareFriends() }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
+        }
+        .sheet(isPresented: $showShareSheet) {
+            shareSheet
+        }
         .confirmationDialog(
             "Remove from watchlist?",
             isPresented: $showRemoveConfirm,
@@ -84,12 +104,12 @@ struct PersonalWatchlistDetailView: View {
                             switch phase {
                             case .empty:
                                 ZStack {
-                                    RoundedRectangle(cornerRadius: 18)
+                                    RoundedRectangle(cornerRadius: 14)
                                         .fill(Color.white.opacity(0.08))
                                     ProgressView().tint(Color("BrandSand"))
                                 }
                             case .success(let image):
-                                image.resizable().scaledToFill()
+                                image.resizable().aspectRatio(2/3, contentMode: .fill)
                             case .failure:
                                 VHSMoviePlaceholderView()
                             @unknown default:
@@ -100,8 +120,10 @@ struct PersonalWatchlistDetailView: View {
                         VHSMoviePlaceholderView()
                     }
                 }
-                .frame(height: 230)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .aspectRatio(2/3, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 14))
 
                 // Service badge
                 if !movie.providers.isEmpty {
@@ -174,6 +196,63 @@ struct PersonalWatchlistDetailView: View {
         }
     }
 
+    // MARK: - Share Sheet
+
+    private var shareSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color("BrandCharcoal").ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    if isLoadingFriends {
+                        Spacer()
+                        ProgressView().tint(Color("BrandSand"))
+                        Spacer()
+                    } else if shareFriends.isEmpty {
+                        Spacer()
+                        Text("Add some friends first to share this watchlist.")
+                            .foregroundStyle(.white.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                        Spacer()
+                    } else {
+                        List(shareFriends, id: \.id) { friend in
+                            Button {
+                                Task { await share(with: friend) }
+                            } label: {
+                                HStack {
+                                    Text(friend.display_name)
+                                        .foregroundStyle(.white)
+                                    Spacer()
+                                    if sharingToUserId == friend.id {
+                                        ProgressView().tint(Color("BrandSand"))
+                                    }
+                                }
+                            }
+                            .listRowBackground(Color.white.opacity(0.05))
+                        }
+                        .scrollContentBackground(.hidden)
+                    }
+
+                    if !shareFeedback.isEmpty {
+                        Text(shareFeedback)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color("BrandGold"))
+                            .padding()
+                    }
+                }
+            }
+            .navigationTitle("Share \"\(watchlist.name)\"")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Close") { showShareSheet = false }
+                        .foregroundStyle(Color("BrandSand"))
+                }
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func tagView(_ text: String) -> some View {
@@ -223,6 +302,35 @@ struct PersonalWatchlistDetailView: View {
         } catch {
             print("REMOVE MOVIE ERROR:", error)
         }
+    }
+
+    private func loadShareFriends() async {
+        guard let token = authStore.accessToken else { return }
+        isLoadingFriends = true
+        do {
+            let response = try await friendsService.fetchFriends(token: token)
+            shareFriends = response.friends
+        } catch {
+            print("LOAD SHARE FRIENDS ERROR:", error)
+        }
+        isLoadingFriends = false
+    }
+
+    private func share(with friend: FriendUser) async {
+        guard let token = authStore.accessToken else { return }
+        sharingToUserId = friend.id
+        do {
+            _ = try await service.shareWatchlist(token: token, watchlistId: watchlist.id, friendUserId: friend.id)
+            shareFeedback = "Sent to \(friend.display_name)!"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                showShareSheet = false
+                shareFeedback = ""
+            }
+        } catch {
+            shareFeedback = "Couldn't share — try again."
+            print("SHARE WATCHLIST ERROR:", error)
+        }
+        sharingToUserId = nil
     }
 }
 

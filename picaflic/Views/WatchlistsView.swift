@@ -18,6 +18,8 @@ struct WatchlistsView: View {
     @State private var isCreatingPersonal = false
     @State private var showCreateMenu = false
     @State private var membersPopover: WatchlistSummary? = nil
+    @State private var receivedShares: [PersonalWatchlistShare] = []
+    @State private var respondingShareId: Int? = nil
 
     var body: some View {
         NavigationStack {
@@ -143,6 +145,123 @@ struct WatchlistsView: View {
                                     RoundedRectangle(cornerRadius: 14)
                                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                                 )
+                                
+                                // MARK: - Shared With You Block
+                                if !receivedShares.isEmpty {
+                                    VStack(spacing: 0) {
+                                        HStack {
+                                            Text("Shared With You")
+                                                .font(.headline.weight(.bold))
+                                                .foregroundStyle(.white)
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                        .background(Color("BrandTeal"))
+                                        .clipShape(RoundedRectangle(cornerRadius: 14).corners([.topLeft, .topRight]))
+
+                                        VStack(spacing: 0) {
+                                            ForEach(receivedShares) { share in
+                                                if share.status == "pending" {
+                                                    HStack(spacing: 10) {
+                                                        VStack(alignment: .leading, spacing: 2) {
+                                                            Text(share.watchlist_name)
+                                                                .font(.subheadline.weight(.semibold))
+                                                                .foregroundStyle(Color("BrandGold"))
+                                                            Text("from \(share.owner_display_name)")
+                                                                .font(.caption)
+                                                                .foregroundStyle(.white.opacity(0.6))
+                                                        }
+                                                        Spacer()
+
+                                                        if respondingShareId == share.share_id {
+                                                            ProgressView().tint(Color("BrandSand"))
+                                                        } else {
+                                                            Button {
+                                                                Task { await respond(to: share, accept: false) }
+                                                            } label: {
+                                                                Image(systemName: "xmark")
+                                                                    .font(.caption.weight(.bold))
+                                                                    .foregroundStyle(.white)
+                                                                    .frame(width: 30, height: 30)
+                                                                    .background(Color("BrandRust"))
+                                                                    .clipShape(Circle())
+                                                            }
+                                                            .buttonStyle(.plain)
+
+                                                            Button {
+                                                                Task { await respond(to: share, accept: true) }
+                                                            } label: {
+                                                                Image(systemName: "checkmark")
+                                                                    .font(.caption.weight(.bold))
+                                                                    .foregroundStyle(.white)
+                                                                    .frame(width: 30, height: 30)
+                                                                    .background(Color("BrandGold"))
+                                                                    .clipShape(Circle())
+                                                            }
+                                                            .buttonStyle(.plain)
+                                                        }
+                                                    }
+                                                    .padding(.horizontal, 16)
+                                                    .padding(.vertical, 14)
+                                                } else {
+                                                    NavigationLink {
+                                                        SharedWatchlistDetailView(share: share)
+                                                            .environmentObject(authStore)
+                                                    } label: {
+                                                        HStack(spacing: 10) {
+                                                            Image("EyeballGraphic")
+                                                                .resizable()
+                                                                .scaledToFit()
+                                                                .frame(width: 20, height: 20)
+
+                                                            VStack(alignment: .leading, spacing: 2) {
+                                                                Text(share.watchlist_name)
+                                                                    .font(.subheadline.weight(.semibold))
+                                                                    .foregroundStyle(Color("BrandGold"))
+                                                                Text("from \(share.owner_display_name)")
+                                                                    .font(.caption)
+                                                                    .foregroundStyle(.white.opacity(0.6))
+                                                            }
+
+                                                            Spacer()
+
+                                                            if share.match_count > 0 {
+                                                                Text("\(share.match_count) match\(share.match_count == 1 ? "" : "es")")
+                                                                    .font(.caption.weight(.semibold))
+                                                                    .foregroundStyle(Color("BrandGold"))
+                                                                    .padding(.horizontal, 8)
+                                                                    .padding(.vertical, 4)
+                                                                    .background(Color("BrandGold").opacity(0.15))
+                                                                    .clipShape(Capsule())
+                                                            }
+
+                                                            Image(systemName: "chevron.right")
+                                                                .font(.caption)
+                                                                .foregroundStyle(.white.opacity(0.3))
+                                                        }
+                                                        .padding(.horizontal, 16)
+                                                        .padding(.vertical, 14)
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                }
+
+                                                if share.id != receivedShares.last?.id {
+                                                    Divider()
+                                                        .background(Color.white.opacity(0.08))
+                                                        .padding(.horizontal, 16)
+                                                }
+                                            }
+                                        }
+                                        .background(Color.white.opacity(0.05))
+                                        .clipShape(RoundedRectangle(cornerRadius: 14).corners([.bottomLeft, .bottomRight]))
+                                    }
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 14)
+                                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                    )
+                                }
 
                                 // MARK: - Group Watchlists Block
                                 VStack(spacing: 0) {
@@ -432,8 +551,34 @@ struct WatchlistsView: View {
         isLoading = true
         await loadWatchlists()
         await loadPersonalWatchlists()
+        await loadReceivedShares()
         await loadAcceptedFriends()
         isLoading = false
+    }
+
+    private func loadReceivedShares() async {
+        guard let token = authStore.accessToken else { return }
+        do {
+            receivedShares = try await personalService.fetchReceivedShares(token: token)
+        } catch {
+            print("LOAD RECEIVED SHARES ERROR:", error)
+        }
+    }
+
+    private func respond(to share: PersonalWatchlistShare, accept: Bool) async {
+        guard let token = authStore.accessToken else { return }
+        respondingShareId = share.share_id
+        do {
+            if accept {
+                try await personalService.acceptShare(token: token, shareId: share.share_id)
+            } else {
+                try await personalService.declineShare(token: token, shareId: share.share_id)
+            }
+            await loadReceivedShares()
+        } catch {
+            print("RESPOND TO SHARE ERROR:", error)
+        }
+        respondingShareId = nil
     }
 
     private func loadWatchlists() async {

@@ -7,9 +7,11 @@ struct InboxView: View {
     private let friendsService = FriendsService()
     private let inboxService = InboxService()
     private let messageService = MessageService()
+    private let personalWatchlistService = PersonalWatchlistService()
 
     @State private var pendingFriendRequests: [FriendUser] = []
     @State private var watchlistInvites: [WatchlistInviteItem] = []
+    @State private var watchlistShares: [PersonalWatchlistShare] = []
     @State private var isLoading = false
     @State private var errorMessage = ""
     @State private var messages: [Message] = []
@@ -40,7 +42,7 @@ struct InboxView: View {
 
                             inboxBlock(
                                 title: "Messages",
-                                height: max(100, (geo.size.height - 72) / 3)
+                                height: max(100, (geo.size.height - 96) / 4)
                             ) {
                                 if messages.isEmpty {
                                     emptyBlockMessage("No messages yet.")
@@ -58,7 +60,7 @@ struct InboxView: View {
 
                             inboxBlock(
                                 title: "Friend Requests",
-                                height: max(100, (geo.size.height - 72) / 3)
+                                height: max(100, (geo.size.height - 96) / 4)
                             ) {
                                 if pendingFriendRequests.isEmpty {
                                     emptyBlockMessage("No friend requests right now.")
@@ -76,7 +78,7 @@ struct InboxView: View {
 
                             inboxBlock(
                                 title: "Watchlist Requests",
-                                height: max(100, (geo.size.height - 72) / 3)
+                                height: max(100, (geo.size.height - 96) / 4)
                             ) {
                                 if watchlistInvites.isEmpty {
                                     emptyBlockMessage("No watchlist invites right now.")
@@ -84,6 +86,24 @@ struct InboxView: View {
                                     ForEach(watchlistInvites) { invite in
                                         watchlistInviteRow(invite)
                                         if invite.id != watchlistInvites.last?.id {
+                                            Divider()
+                                                .background(Color.white.opacity(0.08))
+                                                .padding(.horizontal, 16)
+                                        }
+                                    }
+                                }
+                            }
+
+                            inboxBlock(
+                                title: "Watchlist Shares",
+                                height: max(100, (geo.size.height - 96) / 4)
+                            ) {
+                                if watchlistShares.isEmpty {
+                                    emptyBlockMessage("No watchlist shares right now.")
+                                } else {
+                                    ForEach(watchlistShares) { share in
+                                        watchlistShareRow(share)
+                                        if share.id != watchlistShares.last?.id {
                                             Divider()
                                                 .background(Color.white.opacity(0.08))
                                                 .padding(.horizontal, 16)
@@ -324,6 +344,54 @@ struct InboxView: View {
         .padding(.vertical, 14)
     }
 
+    private func watchlistShareRow(_ share: PersonalWatchlistShare) -> some View {
+        HStack(spacing: 12) {
+            Image("PlayButton")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 22, height: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(share.watchlist_name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color("BrandGold"))
+                Text("From: \(share.owner_display_name)")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+
+            Spacer()
+
+            Button {
+                Task { await acceptShare(share) }
+            } label: {
+                Text("Accept")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color("BrandTeal"))
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                Task { await declineShare(share) }
+            } label: {
+                Text("Decline")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color("BrandRust"))
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+
     private func emptyBlockMessage(_ text: String) -> some View {
         Text(text)
             .font(.subheadline)
@@ -347,14 +415,17 @@ struct InboxView: View {
             async let friendsResponse = friendsService.fetchFriends(token: token)
             async let invitesResponse = inboxService.fetchWatchlistInvites(token: token)
             async let messagesResponse = messageService.fetchMessages(token: token)
+            async let sharesResponse = personalWatchlistService.fetchReceivedShares(token: token)
 
             let friends = try await friendsResponse
             let invites = try await invitesResponse
             let msgs = try await messagesResponse
+            let shares = try await sharesResponse
 
             messages = msgs
             pendingFriendRequests = friends.pending_received
             watchlistInvites = invites
+            watchlistShares = shares.filter { $0.status == "pending" }
 
             await inboxStore.refresh(token: token)
         } catch {
@@ -399,6 +470,26 @@ struct InboxView: View {
         guard let token = authStore.accessToken else { return }
         do {
             try await inboxService.declineWatchlistInvite(token: token, inviteId: invite.id)
+            await loadInbox()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func acceptShare(_ share: PersonalWatchlistShare) async {
+        guard let token = authStore.accessToken else { return }
+        do {
+            try await personalWatchlistService.acceptShare(token: token, shareId: share.share_id)
+            await loadInbox()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func declineShare(_ share: PersonalWatchlistShare) async {
+        guard let token = authStore.accessToken else { return }
+        do {
+            try await personalWatchlistService.declineShare(token: token, shareId: share.share_id)
             await loadInbox()
         } catch {
             errorMessage = error.localizedDescription

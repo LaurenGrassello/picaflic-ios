@@ -32,10 +32,11 @@ struct WatchlistDetailView: View {
                     )
                 } label: {
                     Text("Start Swiping")
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color("BrandGold"))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color("BrandGold"))
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
 
@@ -46,10 +47,15 @@ struct WatchlistDetailView: View {
                     )
                 } label: {
                     Text("View Matches")
-                        .padding()
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Color("BrandGold"))
                         .frame(maxWidth: .infinity)
-                        .background(Color("BrandTeal"))
-                        .foregroundStyle(.white)
+                        .padding()
+                        .background(Color("BrandGold").opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color("BrandGold").opacity(0.5), lineWidth: 1)
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
             }

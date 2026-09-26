@@ -19,14 +19,13 @@ struct HomeView: View {
     @State private var isLoadingMore = false
     @State private var currentOffset = 0
     @State private var pageSize = 20
-    @State private var showAllServices = true
-    @State private var selectedServiceId: Int? = nil
-    @State private var selectedGenre: String? = nil
+    @State private var selectedServiceIds: Set<Int> = []
+    @State private var selectedGenres: Set<String> = []
     @State private var selectedType: String? = nil
     @State private var showGenrePicker = false
-    @State private var showTypePicker = false
     @State private var showServicePicker = false
     @State private var selectedMovieForDetail: FeedItem? = nil
+    @State private var feedSeed = Int.random(in: 0...Int.max)
 
     // MARK: - Swipe mode state
     @State private var swipeItems: [FeedItem] = []
@@ -161,16 +160,13 @@ struct HomeView: View {
                 await loadHome(reset: true)
             }
         }
-        .onChange(of: isSwipeMode) { entering in
+        .onChange(of: isSwipeMode) { _, newValue in
             errorMessage = ""
-            if entering && swipeItems.isEmpty {
+            if newValue && swipeItems.isEmpty {
                 Task { await loadSwipeFeed() }
             }
         }
-        .refreshable {
-            await syncPreferences()
-            await loadHome(reset: true)
-        }
+        .refreshable { await loadHome(reset: true) }
         .sheet(isPresented: $showGenrePicker) { genrePickerSheet }
         .sheet(isPresented: $showServicePicker) { servicePickerSheet }
         .sheet(item: $selectedMovieForDetail) { movie in
@@ -621,8 +617,9 @@ struct HomeView: View {
         swipeIsLoading = true
         swipeIndex = 0
         swipeIsShowingBack = false
+        feedSeed = Int.random(in: 0...Int.max)
         do {
-            let response = try await homeService.fetchHomeFeed(token: token, limit: 30, offset: 0)
+            let response = try await homeService.fetchHomeFeed(token: token, limit: 30, offset: 0, seed: feedSeed)
             swipeItems = response.results
             swipePreloadNext()
         } catch {
@@ -669,30 +666,16 @@ struct HomeView: View {
                     showServicePicker = true
                 } label: {
                     HStack(spacing: 4) {
-                        if let sid = selectedServiceId,
-                           let service = availableServices.first(where: { $0.0 == sid }) {
-                            if let asset = service.2 {
-                                Image(asset)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 14, height: 14)
-                                    .clipShape(RoundedRectangle(cornerRadius: 3))
-                            }
-                            Text(service.1)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white)
-                        } else {
-                            Text("All Services")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(selectedServiceId != nil ? .white : Color("BrandSand"))
-                        }
+                        Text(serviceFilterLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(selectedServiceIds.isEmpty ? Color("BrandSand") : .white)
                         Image(systemName: "chevron.down")
                             .font(.caption2)
-                            .foregroundStyle(selectedServiceId != nil ? .white : Color("BrandSand"))
+                            .foregroundStyle(selectedServiceIds.isEmpty ? Color("BrandSand") : .white)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(selectedServiceId != nil ? Color("BrandTeal") : Color.white.opacity(0.06))
+                    .background(selectedServiceIds.isEmpty ? Color.white.opacity(0.06) : Color("BrandTeal"))
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -702,16 +685,33 @@ struct HomeView: View {
                     showGenrePicker = true
                 } label: {
                     HStack(spacing: 4) {
-                        Text(selectedGenre ?? "Genre")
+                        Text(genreFilterLabel)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(selectedGenre != nil ? .white : Color("BrandSand"))
+                            .foregroundStyle(selectedGenres.isEmpty ? Color("BrandSand") : .white)
                         Image(systemName: "chevron.down")
                             .font(.caption2)
-                            .foregroundStyle(selectedGenre != nil ? .white : Color("BrandSand"))
+                            .foregroundStyle(selectedGenres.isEmpty ? Color("BrandSand") : .white)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(selectedGenre != nil ? Color("BrandTeal") : Color.white.opacity(0.06))
+                    .background(selectedGenres.isEmpty ? Color.white.opacity(0.06) : Color("BrandTeal"))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+
+                // Shuffle
+                Button {
+                    Task { await loadHome(reset: true) }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "shuffle")
+                        Text("Shuffle")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color("BrandSand"))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.06))
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -720,6 +720,20 @@ struct HomeView: View {
         }
     }
 
+    private var serviceFilterLabel: String {
+        if selectedServiceIds.isEmpty { return "All Services" }
+        let names = availableServices
+            .filter { selectedServiceIds.contains($0.0) }
+            .map { $0.1 }
+        if names.count == 1 { return names[0] }
+        return "\(names.count) Services"
+    }
+
+    private var genreFilterLabel: String {
+        if selectedGenres.isEmpty { return "Genre" }
+        if selectedGenres.count == 1 { return selectedGenres.first! }
+        return "\(selectedGenres.count) Genres"
+    }
 
     // MARK: - Genre Sheet
 
@@ -728,29 +742,18 @@ struct HomeView: View {
             ZStack {
                 Color("BrandCharcoal").ignoresSafeArea()
                 List {
-                    Button {
-                        selectedGenre = nil
-                        showGenrePicker = false
-                    } label: {
-                        HStack {
-                            Text("All Genres").foregroundStyle(.white)
-                            Spacer()
-                            if selectedGenre == nil {
-                                Image(systemName: "checkmark").foregroundStyle(Color("BrandTeal"))
-                            }
-                        }
-                    }
-                    .listRowBackground(Color.white.opacity(0.06))
-
                     ForEach(genres, id: \.self) { genre in
                         Button {
-                            selectedGenre = genre
-                            showGenrePicker = false
+                            if selectedGenres.contains(genre) {
+                                selectedGenres.remove(genre)
+                            } else {
+                                selectedGenres.insert(genre)
+                            }
                         } label: {
                             HStack {
                                 Text(genre).foregroundStyle(.white)
                                 Spacer()
-                                if selectedGenre == genre {
+                                if selectedGenres.contains(genre) {
                                     Image(systemName: "checkmark").foregroundStyle(Color("BrandTeal"))
                                 }
                             }
@@ -760,9 +763,14 @@ struct HomeView: View {
                 }
                 .scrollContentBackground(.hidden)
             }
-            .navigationTitle("Genre")
+            .navigationTitle("Genres")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Clear All") { selectedGenres.removeAll() }
+                        .foregroundStyle(Color("BrandRust"))
+                        .disabled(selectedGenres.isEmpty)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { showGenrePicker = false }
                         .foregroundStyle(Color("BrandTeal"))
@@ -772,63 +780,55 @@ struct HomeView: View {
         .presentationDetents([.medium])
     }
 
-        private var servicePickerSheet: some View {
-            NavigationStack {
-                ZStack {
-                    Color("BrandCharcoal").ignoresSafeArea()
-                    List {
+    private var servicePickerSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color("BrandCharcoal").ignoresSafeArea()
+                List {
+                    ForEach(availableServices, id: \.0) { (providerId, name, asset) in
                         Button {
-                            selectedServiceId = nil
-                            showAllServices = true
-                            showServicePicker = false
+                            if selectedServiceIds.contains(providerId) {
+                                selectedServiceIds.remove(providerId)
+                            } else {
+                                selectedServiceIds.insert(providerId)
+                            }
                         } label: {
                             HStack {
-                                Text("All Services").foregroundStyle(.white)
+                                if let asset {
+                                    Image(asset)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 22, height: 22)
+                                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                                }
+                                Text(name).foregroundStyle(.white)
                                 Spacer()
-                                if selectedServiceId == nil {
+                                if selectedServiceIds.contains(providerId) {
                                     Image(systemName: "checkmark").foregroundStyle(Color("BrandTeal"))
                                 }
                             }
                         }
                         .listRowBackground(Color.white.opacity(0.06))
-
-                        ForEach(availableServices, id: \.0) { (providerId, name, asset) in
-                            Button {
-                                selectedServiceId = providerId
-                                showAllServices = false
-                                showServicePicker = false
-                            } label: {
-                                HStack {
-                                    if let asset {
-                                        Image(asset)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 22, height: 22)
-                                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                                    }
-                                    Text(name).foregroundStyle(.white)
-                                    Spacer()
-                                    if selectedServiceId == providerId {
-                                        Image(systemName: "checkmark").foregroundStyle(Color("BrandTeal"))
-                                    }
-                                }
-                            }
-                            .listRowBackground(Color.white.opacity(0.06))
-                        }
                     }
-                    .scrollContentBackground(.hidden)
                 }
-                .navigationTitle("Streaming Service")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") { showServicePicker = false }
-                            .foregroundStyle(Color("BrandTeal"))
-                    }
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("Streaming Services")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Clear All") { selectedServiceIds.removeAll() }
+                        .foregroundStyle(Color("BrandRust"))
+                        .disabled(selectedServiceIds.isEmpty)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showServicePicker = false }
+                        .foregroundStyle(Color("BrandTeal"))
                 }
             }
-            .presentationDetents([.medium])
         }
+        .presentationDetents([.medium])
+    }
 
     // MARK: - Computed
 
@@ -848,12 +848,18 @@ struct HomeView: View {
     private var filteredMovies: [FeedItem] {
         movies.filter { movie in
             if let id = movie.localId, dislikedIds.contains(id) { return false }
-            if let sid = selectedServiceId, !movie.providerIdList.contains(sid) { return false }
+            if !selectedServiceIds.isEmpty {
+                let matchesService = movie.providerIdList.contains { selectedServiceIds.contains($0) }
+                if !matchesService { return false }
+            }
             if let type = selectedType {
                 if type == "movie" && movie.isTV { return false }
                 if type == "tv" && !movie.isTV { return false }
             }
-            if let genre = selectedGenre, !movie.genreNames.contains(genre) { return false }
+            if !selectedGenres.isEmpty {
+                let matchesGenre = movie.genreNames.contains { selectedGenres.contains($0) }
+                if !matchesGenre { return false }
+            }
             return true
         }
     }
@@ -1056,6 +1062,7 @@ struct HomeView: View {
             errorMessage = ""
             currentOffset = 0
             hasMore = true
+            feedSeed = Int.random(in: 0...Int.max)
         } else {
             guard !isLoading, !isLoadingMore, hasMore else { return }
             isLoadingMore = true
@@ -1065,7 +1072,8 @@ struct HomeView: View {
             let response = try await homeService.fetchHomeFeed(
                 token: token,
                 limit: pageSize,
-                offset: currentOffset
+                offset: currentOffset,
+                seed: feedSeed
             )
             if reset {
                 movies = response.results

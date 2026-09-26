@@ -13,8 +13,8 @@ struct WatchlistMatchesView: View {
     @State private var errorMessage = ""
 
     private let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible())
+        GridItem(.flexible(), spacing: 20),
+        GridItem(.flexible(), spacing: 20)
     ]
 
     var body: some View {
@@ -42,7 +42,7 @@ struct WatchlistMatchesView: View {
                     emptyStateView
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 16) {
+                        LazyVGrid(columns: columns, spacing: 24) {
                             ForEach(movies) { movie in
                                 movieCard(movie)
                             }
@@ -104,14 +104,14 @@ struct WatchlistMatchesView: View {
     }
 
     private func movieCard(_ movie: WatchlistMovie) -> some View {
-        VStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 8) {
             Group {
                 if let posterURL = movie.posterURL {
                     AsyncImage(url: posterURL) { phase in
                         switch phase {
                         case .empty:
                             ZStack {
-                                RoundedRectangle(cornerRadius: 18)
+                                RoundedRectangle(cornerRadius: 14)
                                     .fill(Color.white.opacity(0.08))
 
                                 ProgressView()
@@ -121,7 +121,7 @@ struct WatchlistMatchesView: View {
                         case .success(let image):
                             image
                                 .resizable()
-                                .scaledToFill()
+                                .aspectRatio(2/3, contentMode: .fill)
 
                         case .failure:
                             VHSMoviePlaceholderView()
@@ -134,26 +134,27 @@ struct WatchlistMatchesView: View {
                     VHSMoviePlaceholderView()
                 }
             }
-            .frame(height: 220)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .aspectRatio(2/3, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 14))
 
             Text(movie.title ?? "Untitled Movie")
-                .font(.subheadline.weight(.semibold))
+                .font(.footnote.weight(.bold))
                 .foregroundStyle(Color("BrandSand"))
-                .multilineTextAlignment(.center)
                 .lineLimit(2)
-                .frame(maxWidth: .infinity)
+                .frame(height: 30, alignment: .top)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity)
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.05))
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
-    
+
     private func loadMovies() async {
         guard let token = authStore.accessToken else {
             errorMessage = "Missing auth token."

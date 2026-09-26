@@ -17,9 +17,10 @@ struct InboxCounts {
     let friendRequests: Int
     let watchlistInvites: Int
     let unreadMessages: Int
+    let watchlistShares: Int
 
     var total: Int {
-        friendRequests + watchlistInvites + unreadMessages
+        friendRequests + watchlistInvites + unreadMessages + watchlistShares
     }
 }
 
